@@ -1,6 +1,5 @@
 /*
 Copyright IBM Corp. All Rights Reserved.
-
 SPDX-License-Identifier: Apache-2.0
 */
 
@@ -72,6 +71,7 @@ var _ = Describe("LSCC", func() {
 		var (
 			fakeCCPackage  *mock.CCPackage
 			legacySecurity *lscc.LegacySecurity
+			packageCache   *lscc.PackageCache
 		)
 
 		BeforeEach(func() {
@@ -82,8 +82,11 @@ var _ = Describe("LSCC", func() {
 
 			fakeSupport.GetChaincodeFromLocalStorageReturns(fakeCCPackage, nil)
 
+			packageCache = &lscc.PackageCache{}
+
 			legacySecurity = &lscc.LegacySecurity{
-				Support: fakeSupport,
+				Support:      fakeSupport,
+				PackageCache: packageCache,
 			}
 		})
 
@@ -95,6 +98,13 @@ var _ = Describe("LSCC", func() {
 			Expect(fakeCCPackage.ValidateCCArgsForCall(0)).To(Equal(ccData))
 		})
 
+		It("caches the result of the package validation", func() {
+			err := legacySecurity.SecurityCheckLegacyChaincode(ccData)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(packageCache.ValidatedPackages).To(HaveKey("chaincode-data-name:version"))
+		})
+
 		Context("when cc package validation fails", func() {
 			BeforeEach(func() {
 				fakeCCPackage.ValidateCCReturns(errors.New("fake-validation-error"))
@@ -103,6 +113,13 @@ var _ = Describe("LSCC", func() {
 			It("returns an error", func() {
 				err := legacySecurity.SecurityCheckLegacyChaincode(ccData)
 				Expect(err).To(MatchError(lscc.InvalidCCOnFSError("fake-validation-error")))
+			})
+
+			It("does not cache the result of the package validation", func() {
+				err := legacySecurity.SecurityCheckLegacyChaincode(ccData)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(packageCache.ValidatedPackages).NotTo(HaveKey("chaincode-data-name:version"))
 			})
 		})
 

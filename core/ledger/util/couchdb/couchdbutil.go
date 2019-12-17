@@ -57,12 +57,18 @@ func CreateCouchInstance(config *Config, metricsProvider metrics.Provider) (*Cou
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
-			Timeout:   5 * time.Second,
+			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
 			DualStack: true,
 		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          5000,
+		MaxIdleConnsPerHost:   5000,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
-	transport.DisableCompression = false
+
 	client.Transport = transport
 
 	//Create the CouchDB instance

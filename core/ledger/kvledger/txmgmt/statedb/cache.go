@@ -47,12 +47,13 @@ func NewCache(usrCacheSizeMBs int, sysNamespaces []string) *Cache {
 // Namespace can be of two types: system namespace (such as lscc) and user
 // namespace (all user's chaincode states).
 func (c *Cache) Enabled(namespace string) bool {
-	for _, ns := range c.sysNamespaces {
-		if namespace == ns {
-			return true
-		}
-	}
-	return c.usrCache != nil
+	return false
+	// for _, ns := range c.sysNamespaces {
+	// 	if namespace == ns {
+	// 		return true
+	// 	}
+	// }
+	// return c.usrCache != nil
 }
 
 // GetState returns the value for a given namespace and key from

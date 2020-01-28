@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package statedb
 
 import (
+	fmt "fmt"
+
 	"github.com/VictoriaMetrics/fastcache"
 	"github.com/golang/protobuf/proto"
 )
@@ -34,12 +36,14 @@ func NewCache(usrCacheSizeMBs int, sysNamespaces []string) *Cache {
 	// By default, 64 MB is allocated for the system cache
 	cache.sysCache = fastcache.New(64 * 1024 * 1024)
 	cache.sysNamespaces = sysNamespaces
+	fmt.Println("Creating systemcache of size 64 MB")
 
 	// User passed size is used to allocate memory for the user cache
 	if usrCacheSizeMBs <= 0 {
 		return cache
 	}
 	cache.usrCache = fastcache.New(usrCacheSizeMBs * 1024 * 1024)
+	fmt.Println("Creating usercache of size ", usrCacheSizeMBs)
 	return cache
 }
 

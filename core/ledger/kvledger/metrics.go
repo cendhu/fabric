@@ -66,10 +66,10 @@ func (s *ledgerStats) updateHistorydbCommitTime(timeTaken time.Duration) {
 }
 
 func (s *ledgerStats) updateCacheMetrics(m ...uint64) {
-	s.stats.cacheHitEndorsement.With(s.ledgerid).Add(float64(m[0]))
-	s.stats.cacheMissEndorsement.With(s.ledgerid).Add(float64(m[1]))
-	s.stats.cacheHitCommit.With(s.ledgerid).Add(float64(m[2]))
-	s.stats.cacheMissCommit.With(s.ledgerid).Add(float64(m[3]))
+	s.stats.cacheHitEndorsement.With("channel", s.ledgerid).Add(float64(m[0]))
+	s.stats.cacheMissEndorsement.With("channel", s.ledgerid).Add(float64(m[1]))
+	s.stats.cacheHitCommit.With("channel", s.ledgerid).Add(float64(m[2]))
+	s.stats.cacheMissCommit.With("channel", s.ledgerid).Add(float64(m[3]))
 }
 
 func (s *ledgerStats) updateTransactionsStats(

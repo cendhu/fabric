@@ -18,6 +18,10 @@ type stats struct {
 	statedbCommitTime              metrics.Histogram
 	transactionsCount              metrics.Counter
 	historydbCommitTime            metrics.Histogram
+	cacheHitEndorsement            metrics.Counter
+	cacheMissEndorsement           metrics.Counter
+	cacheHitCommit                 metrics.Counter
+	cacheMissCommit                metrics.Counter
 }
 
 func newStats(metricsProvider metrics.Provider) *stats {
@@ -27,6 +31,10 @@ func newStats(metricsProvider metrics.Provider) *stats {
 	stats.statedbCommitTime = metricsProvider.NewHistogram(statedbCommitTimeOpts)
 	stats.transactionsCount = metricsProvider.NewCounter(transactionCountOpts)
 	stats.historydbCommitTime = metricsProvider.NewHistogram(historydbCommitTimeOpts)
+	stats.cacheHitEndorsement = metricsProvider.NewCounter(cacheHitEndorsementOpts)
+	stats.cacheMissEndorsement = metricsProvider.NewCounter(cacheMissEndorsementOpts)
+	stats.cacheHitCommit = metricsProvider.NewCounter(cacheHitCommitOpts)
+	stats.cacheMissCommit = metricsProvider.NewCounter(cacheMissCommitOpts)
 	return stats
 }
 
@@ -55,6 +63,13 @@ func (s *ledgerStats) updateStatedbCommitTime(timeTaken time.Duration) {
 
 func (s *ledgerStats) updateHistorydbCommitTime(timeTaken time.Duration) {
 	s.stats.historydbCommitTime.With("channel", s.ledgerid).Observe(timeTaken.Seconds())
+}
+
+func (s *ledgerStats) updateCacheMetrics(m ...uint64) {
+	s.stats.cacheHitEndorsement.With(s.ledgerid).Add(float64(m[0]))
+	s.stats.cacheMissEndorsement.With(s.ledgerid).Add(float64(m[1]))
+	s.stats.cacheHitCommit.With(s.ledgerid).Add(float64(m[2]))
+	s.stats.cacheMissCommit.With(s.ledgerid).Add(float64(m[3]))
 }
 
 func (s *ledgerStats) updateTransactionsStats(
@@ -118,6 +133,42 @@ var (
 		Help:         "Number of transactions processed.",
 		LabelNames:   []string{"channel", "transaction_type", "chaincode", "validation_code"},
 		StatsdFormat: "%{#fqname}.%{channel}.%{transaction_type}.%{chaincode}.%{validation_code}",
+	}
+
+	cacheHitEndorsementOpts = metrics.CounterOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "cache_hit_endorsement_count",
+		Help:         "Number of transactions processed.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+	}
+
+	cacheMissEndorsementOpts = metrics.CounterOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "cache_miss_endorsement_count",
+		Help:         "Number of transactions processed.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+	}
+
+	cacheHitCommitOpts = metrics.CounterOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "cache_hit_commit_count",
+		Help:         "Number of transactions processed.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+	}
+
+	cacheMissCommitOpts = metrics.CounterOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "cache_miss_commit_count",
+		Help:         "Number of transactions processed.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
 	}
 
 	historydbCommitTimeOpts = metrics.HistogramOpts{

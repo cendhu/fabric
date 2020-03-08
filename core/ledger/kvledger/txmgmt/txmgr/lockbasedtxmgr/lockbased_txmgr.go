@@ -232,7 +232,7 @@ func (txmgr *LockBasedTxMgr) RemoveStaleAndCommitPvtDataOfOldBlocks(reconciledPv
 
 	// (6) commit the pvt data to the stateDB
 	logger.Debug("Committing updates to state database")
-	if err := txmgr.db.ApplyPrivacyAwareUpdates(batch, nil); err != nil {
+	if _, _, _, _, err := txmgr.db.ApplyPrivacyAwareUpdates(batch, nil); err != nil {
 		return err
 	}
 	return nil
@@ -468,7 +468,7 @@ func (txmgr *LockBasedTxMgr) Shutdown() {
 }
 
 // Commit implements method in interface `txmgmt.TxMgr`
-func (txmgr *LockBasedTxMgr) Commit() error {
+func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, error) {
 	// we need to acquire a lock on oldBlockCommit. The following are the two reasons:
 	// (1) the DeleteExpiredAndUpdateBookkeeping() would perform incorrect operation if
 	//        toPurgeList is updated by RemoveStaleAndCommitPvtDataOfOldBlocks().
@@ -476,55 +476,56 @@ func (txmgr *LockBasedTxMgr) Commit() error {
 	//     batch based on the current state and if we allow regular block commits at the
 	//     same time, the former may overwrite the newer versions of the data and we may
 	//     end up with an incorrect update batch.
-	txmgr.oldBlockCommit.Lock()
-	defer txmgr.oldBlockCommit.Unlock()
+	t.oldBlockCommit.Lock()
+	defer t.oldBlockCommit.Unlock()
 	logger.Debug("lock acquired on oldBlockCommit for committing regular updates to state database")
 
 	// When using the purge manager for the first block commit after peer start, the asynchronous function
 	// 'PrepareForExpiringKeys' is invoked in-line. However, for the subsequent blocks commits, this function is invoked
 	// in advance for the next block
-	if !txmgr.pvtdataPurgeMgr.usedOnce {
-		txmgr.pvtdataPurgeMgr.PrepareForExpiringKeys(txmgr.current.blockNum())
-		txmgr.pvtdataPurgeMgr.usedOnce = true
+	if !t.pvtdataPurgeMgr.usedOnce {
+		t.pvtdataPurgeMgr.PrepareForExpiringKeys(t.current.blockNum())
+		t.pvtdataPurgeMgr.usedOnce = true
 	}
 	defer func() {
-		txmgr.pvtdataPurgeMgr.PrepareForExpiringKeys(txmgr.current.blockNum() + 1)
+		t.pvtdataPurgeMgr.PrepareForExpiringKeys(t.current.blockNum() + 1)
 		logger.Debugf("launched the background routine for preparing keys to purge with the next block")
-		txmgr.reset()
+		t.reset()
 	}()
 
 	logger.Debugf("Committing updates to state database")
-	if txmgr.current == nil {
+	if t.current == nil {
 		panic("validateAndPrepare() method should have been called before calling commit()")
 	}
 
-	if err := txmgr.pvtdataPurgeMgr.DeleteExpiredAndUpdateBookkeeping(
-		txmgr.current.batch.PvtUpdates, txmgr.current.batch.HashUpdates); err != nil {
-		return err
+	if err := t.pvtdataPurgeMgr.DeleteExpiredAndUpdateBookkeeping(
+		t.current.batch.PvtUpdates, t.current.batch.HashUpdates); err != nil {
+		return nil, err
 	}
 
-	commitHeight := version.NewHeight(txmgr.current.blockNum(), txmgr.current.maxTxNumber())
-	txmgr.commitRWLock.Lock()
+	commitHeight := version.NewHeight(t.current.blockNum(), t.current.maxTxNumber())
+	t.commitRWLock.Lock()
 	logger.Debugf("Write lock acquired for committing updates to state database")
-	if err := txmgr.db.ApplyPrivacyAwareUpdates(txmgr.current.batch, commitHeight); err != nil {
-		txmgr.commitRWLock.Unlock()
-		return err
+	ehit, emiss, chit, cmiss, err := t.db.ApplyPrivacyAwareUpdates(t.current.batch, commitHeight)
+	if err != nil {
+		t.commitRWLock.Unlock()
+		return nil, err
 	}
-	txmgr.commitRWLock.Unlock()
+	t.commitRWLock.Unlock()
 	// only while holding a lock on oldBlockCommit, we should clear the cache as the
 	// cache is being used by the old pvtData committer to load the version of
 	// hashedKeys. Also, note that the PrepareForExpiringKeys uses the cache.
-	txmgr.clearCache()
+	t.clearCache()
 	logger.Debugf("Updates committed to state database and the write lock is released")
 
 	// purge manager should be called (in this call the purge mgr removes the expiry entries from schedules) after committing to statedb
-	if err := txmgr.pvtdataPurgeMgr.BlockCommitDone(); err != nil {
-		return err
+	if err := t.pvtdataPurgeMgr.BlockCommitDone(); err != nil {
+		return nil, err
 	}
 	// In the case of error state listeners will not receive this call - instead a peer panic is caused by the ledger upon receiving
 	// an error from this function
-	txmgr.updateStateListeners()
-	return nil
+	t.updateStateListeners()
+	return &txmgr.CacheMetrics{ehit, emiss, chit, cmiss}, nil
 }
 
 // Rollback implements method in interface `txmgmt.TxMgr`
@@ -571,7 +572,8 @@ func (txmgr *LockBasedTxMgr) CommitLostBlock(blockAndPvtdata *ledger.BlockAndPvt
 		logger.Debugf("Recommitting block [%d] to state database", block.Header.Number)
 	}
 
-	return txmgr.Commit()
+	_, err := txmgr.Commit()
+	return err
 }
 
 func extractStateUpdates(batch *privacyenabledstate.UpdateBatch, namespaces []string) ledger.StateUpdates {

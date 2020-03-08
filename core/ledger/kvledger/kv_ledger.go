@@ -464,7 +464,8 @@ func (l *kvLedger) CommitLegacy(pvtdataAndBlock *ledger.BlockAndPvtData, commitO
 
 	startCommitState := time.Now()
 	logger.Debugf("[%s] Committing block [%d] transactions to state database", l.ledgerID, blockNo)
-	if err = l.txtmgmt.Commit(); err != nil {
+	cacheMetrics, err := l.txtmgmt.Commit()
+	if err != nil {
 		panic(errors.WithMessage(err, "error during commit to txmgr"))
 	}
 	elapsedCommitState := time.Since(startCommitState)
@@ -495,6 +496,7 @@ func (l *kvLedger) CommitLegacy(pvtdataAndBlock *ledger.BlockAndPvtData, commitO
 		elapsedCommitState,
 		txstatsInfo,
 		elapsedHistoryDBCommitTime,
+		cacheMetrics,
 	)
 	return nil
 }
@@ -513,12 +515,15 @@ func (l *kvLedger) updateBlockStats(
 	statedbCommitTime time.Duration,
 	txstatsInfo []*txmgr.TxStatInfo,
 	historydbCommitTime time.Duration,
+	cacheMetrics *txmgr.CacheMetrics,
 ) {
 	l.stats.updateBlockProcessingTime(blockProcessingTime)
 	l.stats.updateBlockstorageAndPvtdataCommitTime(blockstorageAndPvtdataCommitTime)
 	l.stats.updateStatedbCommitTime(statedbCommitTime)
 	l.stats.updateTransactionsStats(txstatsInfo)
 	l.stats.updateHistorydbCommitTime(historydbCommitTime)
+	l.stats.updateCacheMetrics(cacheMetrics.CacheEndorsementHit, cacheMetrics.CacheEndorsementMiss,
+		cacheMetrics.CacheCommitHit, cacheMetrics.CacheCommitMiss)
 }
 
 // GetMissingPvtDataInfoForMostRecentBlocks returns the missing private data information for the

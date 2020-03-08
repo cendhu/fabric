@@ -32,7 +32,7 @@ type TxMgr interface {
 	GetLastSavepoint() (*version.Height, error)
 	ShouldRecover(lastAvailableBlock uint64) (bool, uint64, error)
 	CommitLostBlock(blockAndPvtdata *ledger.BlockAndPvtData) error
-	Commit() error
+	Commit() (*CacheMetrics, error)
 	Rollback()
 	Shutdown()
 	Name() string
@@ -44,6 +44,13 @@ type TxStatInfo struct {
 	TxType         common.HeaderType
 	ChaincodeID    *peer.ChaincodeID
 	NumCollections int
+}
+
+type CacheMetrics struct {
+	CacheEndorsementHit  uint64
+	CacheEndorsementMiss uint64
+	CacheCommitHit       uint64
+	CacheCommitMiss      uint64
 }
 
 // ErrUnsupportedTransaction is expected to be thrown if a unsupported query is performed in an update transaction

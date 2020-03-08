@@ -172,7 +172,7 @@ func (vdb *versionedDB) ExecuteQueryWithMetadata(namespace, query string, metada
 }
 
 // ApplyUpdates implements method in VersionedDB interface
-func (vdb *versionedDB) ApplyUpdates(batch *statedb.UpdateBatch, height *version.Height) error {
+func (vdb *versionedDB) ApplyUpdates(batch *statedb.UpdateBatch, height *version.Height) (uint64, uint64, uint64, uint64, error) {
 	dbBatch := leveldbhelper.NewUpdateBatch()
 	namespaces := batch.GetUpdatedNamespaces()
 	for _, ns := range namespaces {
@@ -186,7 +186,7 @@ func (vdb *versionedDB) ApplyUpdates(batch *statedb.UpdateBatch, height *version
 			} else {
 				encodedVal, err := encodeValue(vv)
 				if err != nil {
-					return err
+					return 0, 0, 0, 0, err
 				}
 				dbBatch.Put(dataKey, encodedVal)
 			}
@@ -201,9 +201,9 @@ func (vdb *versionedDB) ApplyUpdates(batch *statedb.UpdateBatch, height *version
 	}
 	// Setting snyc to true as a precaution, false may be an ok optimization after further testing.
 	if err := vdb.db.WriteBatch(dbBatch, true); err != nil {
-		return err
+		return 0, 0, 0, 0, err
 	}
-	return nil
+	return 0, 0, 0, 0, nil
 }
 
 // GetLatestSavePoint implements method in VersionedDB interface

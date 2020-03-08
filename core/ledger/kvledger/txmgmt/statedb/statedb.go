@@ -54,7 +54,7 @@ type VersionedDB interface {
 	// ApplyUpdates applies the batch to the underlying db.
 	// height is the height of the highest transaction in the Batch that
 	// a state db implementation is expected to ues as a save point
-	ApplyUpdates(batch *UpdateBatch, height *version.Height) error
+	ApplyUpdates(batch *UpdateBatch, height *version.Height) (uint64, uint64, uint64, uint64, error)
 	// GetLatestSavePoint returns the height of the highest transaction upto which
 	// the state db is consistent
 	GetLatestSavePoint() (*version.Height, error)

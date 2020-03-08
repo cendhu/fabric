@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/common/ledger/dataformat"
@@ -174,6 +175,10 @@ type VersionedDB struct {
 	mux                sync.RWMutex
 	redoLogger         *redoLogger
 	cache              *statedb.Cache
+	ehit               uint64
+	emiss              uint64
+	chit               uint64
+	cmiss              uint64
 }
 
 // newVersionedDB constructs an instance of VersionedDB
@@ -292,6 +297,7 @@ func (vdb *VersionedDB) LoadCommittedVersions(keys []*statedb.CompositeKey) erro
 			return err
 		}
 		if cv == nil {
+			atomic.AddUint64(&vdb.cmiss, 1)
 			missingKeys[ns] = append(missingKeys[ns], key)
 			continue
 		}
@@ -301,6 +307,7 @@ func (vdb *VersionedDB) LoadCommittedVersions(keys []*statedb.CompositeKey) erro
 		}
 		rev := string(cv.AdditionalInfo)
 		committedDataCache.setVerAndRev(ns, key, vv.Version, rev)
+		atomic.AddUint64(&vdb.chit, 1)
 	}
 
 	nsMetadataMap, err := vdb.retrieveMetadata(missingKeys)
@@ -376,6 +383,7 @@ func (vdb *VersionedDB) GetState(namespace string, key string) (*statedb.Version
 			return nil, err
 		}
 		if cv != nil {
+			atomic.AddUint64(&vdb.ehit, 1)
 			vv, err := constructVersionedValue(cv)
 			if err != nil {
 				return nil, err
@@ -383,6 +391,7 @@ func (vdb *VersionedDB) GetState(namespace string, key string) (*statedb.Version
 			return vv, nil
 		}
 	}
+	atomic.AddUint64(&vdb.emiss, 1)
 
 	// (2) read from the database if cache miss occurs
 	kv, err := vdb.readFromDB(namespace, key)
@@ -625,7 +634,7 @@ func validateQueryMetadata(metadata map[string]interface{}) error {
 }
 
 // ApplyUpdates implements method in VersionedDB interface
-func (vdb *VersionedDB) ApplyUpdates(updates *statedb.UpdateBatch, height *version.Height) error {
+func (vdb *VersionedDB) ApplyUpdates(updates *statedb.UpdateBatch, height *version.Height) (uint64, uint64, uint64, uint64, error) {
 	if height != nil && updates.ContainsPostOrderWrites {
 		// height is passed nil when committing missing private data for previously committed blocks
 		r := &redoRecord{
@@ -633,10 +642,12 @@ func (vdb *VersionedDB) ApplyUpdates(updates *statedb.UpdateBatch, height *versi
 			Version:     height,
 		}
 		if err := vdb.redoLogger.persist(r); err != nil {
-			return err
+			return 0, 0, 0, 0, err
 		}
 	}
-	return vdb.applyUpdates(updates, height)
+	ehit, emiss, chit, cmiss := vdb.ehit, vdb.emiss, vdb.chit, vdb.cmiss
+	vdb.ehit, vdb.emiss, vdb.chit, vdb.cmiss = 0, 0, 0, 0
+	return ehit, emiss, chit, cmiss, vdb.applyUpdates(updates, height)
 }
 
 func (vdb *VersionedDB) applyUpdates(updates *statedb.UpdateBatch, height *version.Height) error {

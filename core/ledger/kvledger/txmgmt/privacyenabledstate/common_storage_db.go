@@ -235,12 +235,12 @@ func (s CommonStorageDB) ExecuteQueryOnPrivateData(namespace, collection, query 
 
 // ApplyUpdates overrides the function in statedb.VersionedDB and throws appropriate error message
 // Otherwise, somewhere in the code, usage of this function could lead to updating only public data.
-func (s *CommonStorageDB) ApplyUpdates(batch *statedb.UpdateBatch, height *version.Height) error {
-	return errors.New("this function should not be invoked on this type. Please invoke function ApplyPrivacyAwareUpdates")
+func (s *CommonStorageDB) ApplyUpdates(batch *statedb.UpdateBatch, height *version.Height) (uint64, uint64, uint64, uint64, error) {
+	return 0, 0, 0, 0, errors.New("this function should not be invoked on this type. Please invoke function ApplyPrivacyAwareUpdates")
 }
 
 // ApplyPrivacyAwareUpdates implements corresponding function in interface DB
-func (s *CommonStorageDB) ApplyPrivacyAwareUpdates(updates *UpdateBatch, height *version.Height) error {
+func (s *CommonStorageDB) ApplyPrivacyAwareUpdates(updates *UpdateBatch, height *version.Height) (uint64, uint64, uint64, uint64, error) {
 	// combinedUpdates includes both updates to public db and private db, which are partitioned by a separate namespace
 	combinedUpdates := updates.PubUpdates
 	addPvtUpdates(combinedUpdates, updates.PvtUpdates)

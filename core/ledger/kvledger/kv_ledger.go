@@ -526,7 +526,7 @@ func (l *kvLedger) updateBlockStats(
 	l.stats.updateTransactionsStats(txstatsInfo)
 	l.stats.updateHistorydbCommitTime(historydbCommitTime)
 	l.stats.updateCacheMetrics(cacheMetrics.CacheEndorsementHit, cacheMetrics.CacheEndorsementMiss,
-		cacheMetrics.CacheCommitHit, cacheMetrics.CacheCommitMiss, stats.Collisions, stats.BytesSize)
+		cacheMetrics.CacheCommitHit, cacheMetrics.CacheCommitMiss, stats.Collisions, stats.BytesSize, stats.EntriesCount)
 }
 
 // GetMissingPvtDataInfoForMostRecentBlocks returns the missing private data information for the

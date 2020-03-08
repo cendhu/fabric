@@ -17,6 +17,7 @@ type stats struct {
 	blockAndPvtdataStoreCommitTime metrics.Histogram
 	statedbCommitTime              metrics.Histogram
 	transactionsCount              metrics.Counter
+	historydbCommitTime            metrics.Histogram
 }
 
 func newStats(metricsProvider metrics.Provider) *stats {
@@ -25,6 +26,7 @@ func newStats(metricsProvider metrics.Provider) *stats {
 	stats.blockAndPvtdataStoreCommitTime = metricsProvider.NewHistogram(blockAndPvtdataStoreCommitTimeOpts)
 	stats.statedbCommitTime = metricsProvider.NewHistogram(statedbCommitTimeOpts)
 	stats.transactionsCount = metricsProvider.NewCounter(transactionCountOpts)
+	stats.historydbCommitTime = metricsProvider.NewHistogram(historydbCommitTimeOpts)
 	return stats
 }
 
@@ -49,6 +51,10 @@ func (s *ledgerStats) updateBlockstorageAndPvtdataCommitTime(timeTaken time.Dura
 
 func (s *ledgerStats) updateStatedbCommitTime(timeTaken time.Duration) {
 	s.stats.statedbCommitTime.With("channel", s.ledgerid).Observe(timeTaken.Seconds())
+}
+
+func (s *ledgerStats) updateHistorydbCommitTime(timeTaken time.Duration) {
+	s.stats.historydbCommitTime.With("channel", s.ledgerid).Observe(timeTaken.Seconds())
 }
 
 func (s *ledgerStats) updateTransactionsStats(
@@ -112,5 +118,15 @@ var (
 		Help:         "Number of transactions processed.",
 		LabelNames:   []string{"channel", "transaction_type", "chaincode", "validation_code"},
 		StatsdFormat: "%{#fqname}.%{channel}.%{transaction_type}.%{chaincode}.%{validation_code}",
+	}
+
+	historydbCommitTimeOpts = metrics.HistogramOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "historydb_commit_time",
+		Help:         "Time taken in seconds for committing block changes to state db.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+		Buckets:      []float64{0.005, 0.01, 0.015, 0.05, 0.1, 1, 10},
 	}
 )

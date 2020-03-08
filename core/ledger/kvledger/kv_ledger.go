@@ -469,6 +469,7 @@ func (l *kvLedger) CommitLegacy(pvtdataAndBlock *ledger.BlockAndPvtData, commitO
 	}
 	elapsedCommitState := time.Since(startCommitState)
 
+	startHistoryDBCommitTime := time.Now()
 	// History database could be written in parallel with state and/or async as a future optimization,
 	// although it has not been a bottleneck...no need to clutter the log with elapsed duration.
 	if l.historyDB != nil {
@@ -477,6 +478,7 @@ func (l *kvLedger) CommitLegacy(pvtdataAndBlock *ledger.BlockAndPvtData, commitO
 			panic(errors.WithMessage(err, "Error during commit to history db"))
 		}
 	}
+	elapsedHistoryDBCommitTime := time.Since(startHistoryDBCommitTime)
 
 	logger.Infof("[%s] Committed block [%d] with %d transaction(s) in %dms (state_validation=%dms block_and_pvtdata_commit=%dms state_commit=%dms)"+
 		" commitHash=[%x]",
@@ -492,6 +494,7 @@ func (l *kvLedger) CommitLegacy(pvtdataAndBlock *ledger.BlockAndPvtData, commitO
 		elapsedBlockstorageAndPvtdataCommit,
 		elapsedCommitState,
 		txstatsInfo,
+		elapsedHistoryDBCommitTime,
 	)
 	return nil
 }
@@ -509,11 +512,13 @@ func (l *kvLedger) updateBlockStats(
 	blockstorageAndPvtdataCommitTime time.Duration,
 	statedbCommitTime time.Duration,
 	txstatsInfo []*txmgr.TxStatInfo,
+	historydbCommitTime time.Duration,
 ) {
 	l.stats.updateBlockProcessingTime(blockProcessingTime)
 	l.stats.updateBlockstorageAndPvtdataCommitTime(blockstorageAndPvtdataCommitTime)
 	l.stats.updateStatedbCommitTime(statedbCommitTime)
 	l.stats.updateTransactionsStats(txstatsInfo)
+	l.stats.updateHistorydbCommitTime(historydbCommitTime)
 }
 
 // GetMissingPvtDataInfoForMostRecentBlocks returns the missing private data information for the

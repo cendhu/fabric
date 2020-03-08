@@ -22,8 +22,8 @@ type stats struct {
 	cacheMissEndorsement           metrics.Counter
 	cacheHitCommit                 metrics.Counter
 	cacheMissCommit                metrics.Counter
-	cacheCollisions                metrics.Counter
-	cacheSize                      metrics.Counter
+	cacheCollisions                metrics.Histogram
+	cacheSize                      metrics.Histogram
 }
 
 func newStats(metricsProvider metrics.Provider) *stats {
@@ -37,8 +37,8 @@ func newStats(metricsProvider metrics.Provider) *stats {
 	stats.cacheMissEndorsement = metricsProvider.NewCounter(cacheMissEndorsementOpts)
 	stats.cacheHitCommit = metricsProvider.NewCounter(cacheHitCommitOpts)
 	stats.cacheMissCommit = metricsProvider.NewCounter(cacheMissCommitOpts)
-	stats.cacheCollisions = metricsProvider.NewCounter(cacheCollisionsOpts)
-	stats.cacheSize = metricsProvider.NewCounter(cacheSizeOpts)
+	stats.cacheCollisions = metricsProvider.NewHistogram(cacheCollisionsOpts)
+	stats.cacheSize = metricsProvider.NewHistogram(cacheSizeOpts)
 	return stats
 }
 
@@ -74,8 +74,8 @@ func (s *ledgerStats) updateCacheMetrics(m ...uint64) {
 	s.stats.cacheMissEndorsement.With("channel", s.ledgerid).Add(float64(m[1]))
 	s.stats.cacheHitCommit.With("channel", s.ledgerid).Add(float64(m[2]))
 	s.stats.cacheMissCommit.With("channel", s.ledgerid).Add(float64(m[3]))
-	s.stats.cacheCollisions.With("channel", s.ledgerid).Add(float64(m[4]))
-	s.stats.cacheSize.With("channel", s.ledgerid).Add(float64(m[5]))
+	s.stats.cacheCollisions.With("channel", s.ledgerid).Observe(float64(m[4]))
+	s.stats.cacheSize.With("channel", s.ledgerid).Observe(float64(m[5]))
 }
 
 func (s *ledgerStats) updateTransactionsStats(
@@ -177,22 +177,24 @@ var (
 		StatsdFormat: "%{#fqname}.%{channel}",
 	}
 
-	cacheCollisionsOpts = metrics.CounterOpts{
+	cacheCollisionsOpts = metrics.HistogramOpts{
 		Namespace:    "ledger",
 		Subsystem:    "",
 		Name:         "cache_collisions_count",
 		Help:         "Number of transactions processed.",
 		LabelNames:   []string{"channel"},
 		StatsdFormat: "%{#fqname}.%{channel}",
+		Buckets:      []float64{0.005, 0.01, 0.015, 0.05, 0.1, 1, 10},
 	}
 
-	cacheSizeOpts = metrics.CounterOpts{
+	cacheSizeOpts = metrics.HistogramOpts{
 		Namespace:    "ledger",
 		Subsystem:    "",
 		Name:         "cache_size",
 		Help:         "Number of transactions processed.",
 		LabelNames:   []string{"channel"},
 		StatsdFormat: "%{#fqname}.%{channel}",
+		Buckets:      []float64{0.005, 0.01, 0.015, 0.05, 0.1, 1, 10},
 	}
 
 	historydbCommitTimeOpts = metrics.HistogramOpts{

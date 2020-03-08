@@ -9,6 +9,7 @@ package stateleveldb
 import (
 	"bytes"
 
+	"github.com/VictoriaMetrics/fastcache"
 	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/common/ledger/dataformat"
 	"github.com/hyperledger/fabric/common/ledger/util/leveldbhelper"
@@ -172,7 +173,7 @@ func (vdb *versionedDB) ExecuteQueryWithMetadata(namespace, query string, metada
 }
 
 // ApplyUpdates implements method in VersionedDB interface
-func (vdb *versionedDB) ApplyUpdates(batch *statedb.UpdateBatch, height *version.Height) (uint64, uint64, uint64, uint64, error) {
+func (vdb *versionedDB) ApplyUpdates(batch *statedb.UpdateBatch, height *version.Height) (uint64, uint64, uint64, uint64, *fastcache.Stats, error) {
 	dbBatch := leveldbhelper.NewUpdateBatch()
 	namespaces := batch.GetUpdatedNamespaces()
 	for _, ns := range namespaces {
@@ -186,7 +187,7 @@ func (vdb *versionedDB) ApplyUpdates(batch *statedb.UpdateBatch, height *version
 			} else {
 				encodedVal, err := encodeValue(vv)
 				if err != nil {
-					return 0, 0, 0, 0, err
+					return 0, 0, 0, 0, nil, err
 				}
 				dbBatch.Put(dataKey, encodedVal)
 			}
@@ -201,9 +202,9 @@ func (vdb *versionedDB) ApplyUpdates(batch *statedb.UpdateBatch, height *version
 	}
 	// Setting snyc to true as a precaution, false may be an ok optimization after further testing.
 	if err := vdb.db.WriteBatch(dbBatch, true); err != nil {
-		return 0, 0, 0, 0, err
+		return 0, 0, 0, 0, nil, err
 	}
-	return 0, 0, 0, 0, nil
+	return 0, 0, 0, 0, &fastcache.Stats{}, nil
 }
 
 // GetLatestSavePoint implements method in VersionedDB interface

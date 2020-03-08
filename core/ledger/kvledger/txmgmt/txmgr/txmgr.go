@@ -17,6 +17,7 @@ limitations under the License.
 package txmgr
 
 import (
+	"github.com/VictoriaMetrics/fastcache"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/core/ledger"
@@ -32,7 +33,7 @@ type TxMgr interface {
 	GetLastSavepoint() (*version.Height, error)
 	ShouldRecover(lastAvailableBlock uint64) (bool, uint64, error)
 	CommitLostBlock(blockAndPvtdata *ledger.BlockAndPvtData) error
-	Commit() (*CacheMetrics, error)
+	Commit() (*CacheMetrics, *fastcache.Stats, error)
 	Rollback()
 	Shutdown()
 	Name() string

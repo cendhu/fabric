@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"sync"
 
+	"github.com/VictoriaMetrics/fastcache"
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset"
@@ -232,7 +233,7 @@ func (txmgr *LockBasedTxMgr) RemoveStaleAndCommitPvtDataOfOldBlocks(reconciledPv
 
 	// (6) commit the pvt data to the stateDB
 	logger.Debug("Committing updates to state database")
-	if _, _, _, _, err := txmgr.db.ApplyPrivacyAwareUpdates(batch, nil); err != nil {
+	if _, _, _, _, _, err := txmgr.db.ApplyPrivacyAwareUpdates(batch, nil); err != nil {
 		return err
 	}
 	return nil
@@ -468,7 +469,7 @@ func (txmgr *LockBasedTxMgr) Shutdown() {
 }
 
 // Commit implements method in interface `txmgmt.TxMgr`
-func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, error) {
+func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, *fastcache.Stats, error) {
 	// we need to acquire a lock on oldBlockCommit. The following are the two reasons:
 	// (1) the DeleteExpiredAndUpdateBookkeeping() would perform incorrect operation if
 	//        toPurgeList is updated by RemoveStaleAndCommitPvtDataOfOldBlocks().
@@ -500,16 +501,16 @@ func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, error) {
 
 	if err := t.pvtdataPurgeMgr.DeleteExpiredAndUpdateBookkeeping(
 		t.current.batch.PvtUpdates, t.current.batch.HashUpdates); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	commitHeight := version.NewHeight(t.current.blockNum(), t.current.maxTxNumber())
 	t.commitRWLock.Lock()
 	logger.Debugf("Write lock acquired for committing updates to state database")
-	ehit, emiss, chit, cmiss, err := t.db.ApplyPrivacyAwareUpdates(t.current.batch, commitHeight)
+	ehit, emiss, chit, cmiss, stats, err := t.db.ApplyPrivacyAwareUpdates(t.current.batch, commitHeight)
 	if err != nil {
 		t.commitRWLock.Unlock()
-		return nil, err
+		return nil, nil, err
 	}
 	t.commitRWLock.Unlock()
 	// only while holding a lock on oldBlockCommit, we should clear the cache as the
@@ -520,12 +521,12 @@ func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, error) {
 
 	// purge manager should be called (in this call the purge mgr removes the expiry entries from schedules) after committing to statedb
 	if err := t.pvtdataPurgeMgr.BlockCommitDone(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// In the case of error state listeners will not receive this call - instead a peer panic is caused by the ledger upon receiving
 	// an error from this function
 	t.updateStateListeners()
-	return &txmgr.CacheMetrics{ehit, emiss, chit, cmiss}, nil
+	return &txmgr.CacheMetrics{ehit, emiss, chit, cmiss}, stats, nil
 }
 
 // Rollback implements method in interface `txmgmt.TxMgr`
@@ -572,7 +573,7 @@ func (txmgr *LockBasedTxMgr) CommitLostBlock(blockAndPvtdata *ledger.BlockAndPvt
 		logger.Debugf("Recommitting block [%d] to state database", block.Header.Number)
 	}
 
-	_, err := txmgr.Commit()
+	_, _, err := txmgr.Commit()
 	return err
 }
 

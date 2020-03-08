@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/VictoriaMetrics/fastcache"
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
@@ -464,7 +465,7 @@ func (l *kvLedger) CommitLegacy(pvtdataAndBlock *ledger.BlockAndPvtData, commitO
 
 	startCommitState := time.Now()
 	logger.Debugf("[%s] Committing block [%d] transactions to state database", l.ledgerID, blockNo)
-	cacheMetrics, err := l.txtmgmt.Commit()
+	cacheMetrics, stats, err := l.txtmgmt.Commit()
 	if err != nil {
 		panic(errors.WithMessage(err, "error during commit to txmgr"))
 	}
@@ -497,6 +498,7 @@ func (l *kvLedger) CommitLegacy(pvtdataAndBlock *ledger.BlockAndPvtData, commitO
 		txstatsInfo,
 		elapsedHistoryDBCommitTime,
 		cacheMetrics,
+		stats,
 	)
 	return nil
 }
@@ -516,6 +518,7 @@ func (l *kvLedger) updateBlockStats(
 	txstatsInfo []*txmgr.TxStatInfo,
 	historydbCommitTime time.Duration,
 	cacheMetrics *txmgr.CacheMetrics,
+	stats *fastcache.Stats,
 ) {
 	l.stats.updateBlockProcessingTime(blockProcessingTime)
 	l.stats.updateBlockstorageAndPvtdataCommitTime(blockstorageAndPvtdataCommitTime)
@@ -523,7 +526,7 @@ func (l *kvLedger) updateBlockStats(
 	l.stats.updateTransactionsStats(txstatsInfo)
 	l.stats.updateHistorydbCommitTime(historydbCommitTime)
 	l.stats.updateCacheMetrics(cacheMetrics.CacheEndorsementHit, cacheMetrics.CacheEndorsementMiss,
-		cacheMetrics.CacheCommitHit, cacheMetrics.CacheCommitMiss)
+		cacheMetrics.CacheCommitHit, cacheMetrics.CacheCommitMiss, stats.Collisions, stats.BytesSize)
 }
 
 // GetMissingPvtDataInfoForMostRecentBlocks returns the missing private data information for the

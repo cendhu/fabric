@@ -22,6 +22,8 @@ type stats struct {
 	cacheMissEndorsement           metrics.Counter
 	cacheHitCommit                 metrics.Counter
 	cacheMissCommit                metrics.Counter
+	cacheCollisions                metrics.Counter
+	cacheSize                      metrics.Counter
 }
 
 func newStats(metricsProvider metrics.Provider) *stats {
@@ -35,6 +37,8 @@ func newStats(metricsProvider metrics.Provider) *stats {
 	stats.cacheMissEndorsement = metricsProvider.NewCounter(cacheMissEndorsementOpts)
 	stats.cacheHitCommit = metricsProvider.NewCounter(cacheHitCommitOpts)
 	stats.cacheMissCommit = metricsProvider.NewCounter(cacheMissCommitOpts)
+	stats.cacheCollisions = metricsProvider.NewCounter(cacheCollisionsOpts)
+	stats.cacheSize = metricsProvider.NewCounter(cacheSizeOpts)
 	return stats
 }
 
@@ -70,6 +74,8 @@ func (s *ledgerStats) updateCacheMetrics(m ...uint64) {
 	s.stats.cacheMissEndorsement.With("channel", s.ledgerid).Add(float64(m[1]))
 	s.stats.cacheHitCommit.With("channel", s.ledgerid).Add(float64(m[2]))
 	s.stats.cacheMissCommit.With("channel", s.ledgerid).Add(float64(m[3]))
+	s.stats.cacheCollisions.With("channel", s.ledgerid).Add(float64(m[4]))
+	s.stats.cacheSize.With("channel", s.ledgerid).Add(float64(m[5]))
 }
 
 func (s *ledgerStats) updateTransactionsStats(
@@ -166,6 +172,24 @@ var (
 		Namespace:    "ledger",
 		Subsystem:    "",
 		Name:         "cache_miss_commit_count",
+		Help:         "Number of transactions processed.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+	}
+
+	cacheCollisionsOpts = metrics.CounterOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "cache_collisions_count",
+		Help:         "Number of transactions processed.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+	}
+
+	cacheSizeOpts = metrics.CounterOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "cache_size",
 		Help:         "Number of transactions processed.",
 		LabelNames:   []string{"channel"},
 		StatsdFormat: "%{#fqname}.%{channel}",

@@ -150,6 +150,15 @@ func (c *Cache) Reset() {
 	}
 }
 
+func (c *Cache) GetStats() *fastcache.Stats {
+	if c.usrCache == nil {
+		return nil
+	}
+	s := &fastcache.Stats{}
+	c.usrCache.UpdateStats(s)
+	return s
+}
+
 func (c *Cache) getCache(namespace string) *fastcache.Cache {
 	for _, ns := range c.sysNamespaces {
 		if namespace == ns {

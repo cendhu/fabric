@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/VictoriaMetrics/fastcache"
 	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/common/ledger/dataformat"
 	"github.com/hyperledger/fabric/common/metrics"
@@ -634,7 +635,7 @@ func validateQueryMetadata(metadata map[string]interface{}) error {
 }
 
 // ApplyUpdates implements method in VersionedDB interface
-func (vdb *VersionedDB) ApplyUpdates(updates *statedb.UpdateBatch, height *version.Height) (uint64, uint64, uint64, uint64, error) {
+func (vdb *VersionedDB) ApplyUpdates(updates *statedb.UpdateBatch, height *version.Height) (uint64, uint64, uint64, uint64, *fastcache.Stats, error) {
 	if height != nil && updates.ContainsPostOrderWrites {
 		// height is passed nil when committing missing private data for previously committed blocks
 		r := &redoRecord{
@@ -642,12 +643,16 @@ func (vdb *VersionedDB) ApplyUpdates(updates *statedb.UpdateBatch, height *versi
 			Version:     height,
 		}
 		if err := vdb.redoLogger.persist(r); err != nil {
-			return 0, 0, 0, 0, err
+			return 0, 0, 0, 0, nil, err
 		}
 	}
 	ehit, emiss, chit, cmiss := vdb.ehit, vdb.emiss, vdb.chit, vdb.cmiss
 	vdb.ehit, vdb.emiss, vdb.chit, vdb.cmiss = 0, 0, 0, 0
-	return ehit, emiss, chit, cmiss, vdb.applyUpdates(updates, height)
+	stats := vdb.cache.GetStats()
+	if stats == nil {
+		stats = &fastcache.Stats{}
+	}
+	return ehit, emiss, chit, cmiss, stats, vdb.applyUpdates(updates, height)
 }
 
 func (vdb *VersionedDB) applyUpdates(updates *statedb.UpdateBatch, height *version.Height) error {

@@ -25,6 +25,7 @@ type stats struct {
 	cacheCollisions                metrics.Histogram
 	cacheSize                      metrics.Histogram
 	cacheEntries                   metrics.Gauge
+	lockWaitTime                   metrics.Histogram
 }
 
 func newStats(metricsProvider metrics.Provider) *stats {
@@ -41,6 +42,7 @@ func newStats(metricsProvider metrics.Provider) *stats {
 	stats.cacheCollisions = metricsProvider.NewHistogram(cacheCollisionsOpts)
 	stats.cacheSize = metricsProvider.NewHistogram(cacheSizeOpts)
 	stats.cacheEntries = metricsProvider.NewGauge(cacheEntriesOpts)
+	stats.lockWaitTime = metricsProvider.NewHistogram(lockWaitTimeOpts)
 	return stats
 }
 
@@ -69,6 +71,10 @@ func (s *ledgerStats) updateStatedbCommitTime(timeTaken time.Duration) {
 
 func (s *ledgerStats) updateHistorydbCommitTime(timeTaken time.Duration) {
 	s.stats.historydbCommitTime.With("channel", s.ledgerid).Observe(timeTaken.Seconds())
+}
+
+func (s *ledgerStats) updateLockWaitTime(timeTaken time.Duration) {
+	s.stats.lockWaitTime.With("channel", s.ledgerid).Observe((timeTaken.Seconds()))
 }
 
 func (s *ledgerStats) updateCacheMetrics(m ...uint64) {
@@ -214,6 +220,16 @@ var (
 		Subsystem:    "",
 		Name:         "historydb_commit_time",
 		Help:         "Time taken in seconds for committing block changes to state db.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+		Buckets:      []float64{0.005, 0.01, 0.015, 0.05, 0.1, 1, 10},
+	}
+
+	lockWaitTimeOpts = metrics.HistogramOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "lock_wait_time",
+		Help:         "Time taken in seconds for ledger block processing.",
 		LabelNames:   []string{"channel"},
 		StatsdFormat: "%{#fqname}.%{channel}",
 		Buckets:      []float64{0.005, 0.01, 0.015, 0.05, 0.1, 1, 10},

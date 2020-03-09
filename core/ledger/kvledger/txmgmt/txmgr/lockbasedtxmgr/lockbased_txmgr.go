@@ -478,9 +478,7 @@ func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, *fastcache.Stats, time.D
 	//     batch based on the current state and if we allow regular block commits at the
 	//     same time, the former may overwrite the newer versions of the data and we may
 	//     end up with an incorrect update batch.
-	startLockAcquireTime := time.Now()
 	t.oldBlockCommit.Lock()
-	elapsedLockAcquireTime := time.Since(startLockAcquireTime)
 	defer t.oldBlockCommit.Unlock()
 	logger.Debug("lock acquired on oldBlockCommit for committing regular updates to state database")
 
@@ -508,7 +506,9 @@ func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, *fastcache.Stats, time.D
 	}
 
 	commitHeight := version.NewHeight(t.current.blockNum(), t.current.maxTxNumber())
+	startLockAcquireTime := time.Now()
 	t.commitRWLock.Lock()
+	elapsedLockAcquireTime := time.Since(startLockAcquireTime)
 	logger.Debugf("Write lock acquired for committing updates to state database")
 	ehit, emiss, chit, cmiss, stats, err := t.db.ApplyPrivacyAwareUpdates(t.current.batch, commitHeight)
 	if err != nil {

@@ -87,12 +87,12 @@ func (v *Validator) ValidateAndPrepareBatch(block *internal.Block, doMVCCValidat
 	// Check whether statedb implements BulkOptimizable interface. For now,
 	// only CouchDB implements BulkOptimizable to reduce the number of REST
 	// API calls from peer to CouchDB instance.
-	if v.DB.IsBulkOptimizable() {
-		err := v.preLoadCommittedVersionOfRSet(block)
-		if err != nil {
-			return nil, err
-		}
-	}
+	// if v.DB.IsBulkOptimizable() {
+	// 	err := v.preLoadCommittedVersionOfRSet(block)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// }
 
 	updates := internal.NewPubAndHashUpdates()
 	for _, tx := range block.Txs {

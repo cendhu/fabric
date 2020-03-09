@@ -345,7 +345,10 @@ func (e *Endorser) ProcessProposalSuccessfullyOrError(up *UnpackedProposal) (*pb
 	logger := decorateLogger(endorserLogger, txParams)
 
 	if acquireTxSimulator(up.ChannelHeader.ChannelId, up.ChaincodeName) {
+		lockWaitTime := time.Now()
 		txSim, err := e.Support.GetTxSimulator(up.ChannelID(), up.TxID())
+		elapsedLockWaitTime := time.Since(lockWaitTime)
+		e.Metrics.LockWaitTime.With("channel", up.ChannelHeader.ChannelId).Observe(elapsedLockWaitTime.Seconds())
 		if err != nil {
 			return nil, err
 		}

@@ -66,6 +66,14 @@ var (
 		LabelNames:   []string{"channel", "chaincode"},
 		StatsdFormat: "%{#fqname}.%{channel}.%{chaincode}",
 	}
+
+	lockWaitTimeHistogramOpts = metrics.HistogramOpts{
+		Namespace:    "endorser",
+		Name:         "lock_wait_time",
+		Help:         "The time to complete a proposal.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+	}
 )
 
 type Metrics struct {
@@ -77,6 +85,7 @@ type Metrics struct {
 	InitFailed               metrics.Counter
 	EndorsementsFailed       metrics.Counter
 	DuplicateTxsFailure      metrics.Counter
+	LockWaitTime             metrics.Histogram
 }
 
 func NewMetrics(p metrics.Provider) *Metrics {
@@ -89,5 +98,6 @@ func NewMetrics(p metrics.Provider) *Metrics {
 		InitFailed:               p.NewCounter(initFailureCounterOpts),
 		EndorsementsFailed:       p.NewCounter(endorsementFailureCounterOpts),
 		DuplicateTxsFailure:      p.NewCounter(duplicateTxsFailureCounterOpts),
+		LockWaitTime:             p.NewHistogram(lockWaitTimeHistogramOpts),
 	}
 }

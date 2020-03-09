@@ -491,6 +491,8 @@ func (l *kvLedger) CommitLegacy(pvtdataAndBlock *ledger.BlockAndPvtData, commitO
 		elapsedCommitState/time.Millisecond,
 		l.commitHash,
 	)
+	fmt.Println("cache size = ", stats.BytesSize/(1024*1024), " MB")
+	fmt.Println("cache entries = ", stats.EntriesCount)
 	l.updateBlockStats(
 		elapsedBlockProcessing,
 		elapsedBlockstorageAndPvtdataCommit,

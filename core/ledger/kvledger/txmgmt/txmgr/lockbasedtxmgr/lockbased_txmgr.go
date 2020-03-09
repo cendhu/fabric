@@ -119,7 +119,7 @@ func (txmgr *LockBasedTxMgr) NewQueryExecutor(txid string) (ledger.QueryExecutor
 // However that needs a bigger refactoring of code.
 func (txmgr *LockBasedTxMgr) NewQueryExecutorNoCollChecks() (ledger.QueryExecutor, error) {
 	qe := newQueryExecutor(txmgr, "", false, txmgr.hasher)
-	txmgr.commitRWLock.RLock()
+	// txmgr.commitRWLock.RLock()
 	return qe, nil
 }
 
@@ -130,7 +130,7 @@ func (txmgr *LockBasedTxMgr) NewTxSimulator(txid string) (ledger.TxSimulator, er
 	if err != nil {
 		return nil, err
 	}
-	txmgr.commitRWLock.RLock()
+	// txmgr.commitRWLock.RLock()
 	return s, nil
 }
 
@@ -507,15 +507,15 @@ func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, *fastcache.Stats, time.D
 
 	commitHeight := version.NewHeight(t.current.blockNum(), t.current.maxTxNumber())
 	startLockAcquireTime := time.Now()
-	t.commitRWLock.Lock()
+	// t.commitRWLock.Lock()
 	elapsedLockAcquireTime := time.Since(startLockAcquireTime)
 	logger.Debugf("Write lock acquired for committing updates to state database")
 	ehit, emiss, chit, cmiss, stats, err := t.db.ApplyPrivacyAwareUpdates(t.current.batch, commitHeight)
 	if err != nil {
-		t.commitRWLock.Unlock()
+		// t.commitRWLock.Unlock()
 		return nil, nil, 0, err
 	}
-	t.commitRWLock.Unlock()
+	// t.commitRWLock.Unlock()
 	// only while holding a lock on oldBlockCommit, we should clear the cache as the
 	// cache is being used by the old pvtData committer to load the version of
 	// hashedKeys. Also, note that the PrepareForExpiringKeys uses the cache.

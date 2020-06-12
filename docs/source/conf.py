@@ -20,10 +20,14 @@
 #
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath('.'))
 
-
 import sphinx_rtd_theme
+
+placeholder_replacements = {
+    "{BRANCH}": "release-2.0"
+}
 
 # -- General configuration ------------------------------------------------
 
@@ -35,12 +39,12 @@ import sphinx_rtd_theme
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = ['sphinx.ext.autodoc',
-    'sphinx.ext.doctest',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.todo',
-    'sphinx.ext.imgmath',
-    'sphinx.ext.ifconfig',
-    'sphinx.ext.viewcode']
+              'sphinx.ext.doctest',
+              'sphinx.ext.intersphinx',
+              'sphinx.ext.todo',
+              'sphinx.ext.imgmath',
+              'sphinx.ext.ifconfig',
+              'sphinx.ext.viewcode']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -95,7 +99,6 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
 
-
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -116,14 +119,21 @@ html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
+def placeholderReplace(app, docname, source):
+    result = source[0]
+    for key in app.config.placeholder_replacements:
+        result = result.replace(key, app.config.placeholder_replacements[key])
+    source[0] = result
+
 def setup(app):
     app.add_stylesheet('css/custom.css')
+    app.add_config_value('placeholder_replacements', {}, True)
+    app.connect('source-read', placeholderReplace)
 
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'hyperledger-fabricdocsdoc'
-
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -149,20 +159,20 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'hyperledger-fabricdocs.tex', u'hyperledger-fabricdocs Documentation',
+    (master_doc, 'hyperledger-fabricdocs.tex',
+     u'hyperledger-fabricdocs Documentation',
      u'hyperledger', 'manual'),
 ]
-
 
 # -- Options for manual page output ---------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'hyperledger-fabricdocs', u'hyperledger-fabricdocs Documentation',
+    (master_doc, 'hyperledger-fabricdocs',
+     u'hyperledger-fabricdocs Documentation',
      [author], 1)
 ]
-
 
 # -- Options for Texinfo output -------------------------------------------
 
@@ -170,12 +180,11 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'hyperledger-fabricdocs', u'hyperledger-fabricdocs Documentation',
+    (master_doc, 'hyperledger-fabricdocs',
+     u'hyperledger-fabricdocs Documentation',
      author, 'hyperledger-fabricdocs', 'One line description of project.',
      'Miscellaneous'),
 ]
-
-
 
 # -- Options for Epub output ----------------------------------------------
 
@@ -205,6 +214,3 @@ linkcheck_anchors = False
 
 # Increase the linkcheck timeout to 5 seconds
 linkcheck_timeout = 5
-
-# Ignore redirects from fabric-shim.github.io
-linkcheck_ignore = [r'https://fabric-shim.github.io/*']

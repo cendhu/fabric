@@ -150,6 +150,12 @@ func (e externalVMAdapter) Build(
 	return i, err
 }
 
+type disabledDockerBuilder struct{}
+
+func (disabledDockerBuilder) Build(string, *persistence.ChaincodePackageMetadata, io.Reader) (container.Instance, error) {
+	return nil, errors.New("docker build is disabled")
+}
+
 type endorserChannelAdapter struct {
 	peer *peer.Peer
 }
@@ -169,8 +175,12 @@ type custodianLauncherAdapter struct {
 	streamHandler extcc.StreamHandler
 }
 
-func (e custodianLauncherAdapter) Launch(ccid string) error {
-	return e.launcher.Launch(ccid, e.streamHandler)
+func (c custodianLauncherAdapter) Launch(ccid string) error {
+	return c.launcher.Launch(ccid, c.streamHandler)
+}
+
+func (c custodianLauncherAdapter) Stop(ccid string) error {
+	return c.launcher.Stop(ccid)
 }
 
 func serve(args []string) error {
@@ -215,9 +225,9 @@ func serve(args []string) error {
 	logObserver := floggingmetrics.NewObserver(metricsProvider)
 	flogging.SetObserver(logObserver)
 
-	membershipInfoProvider := privdata.NewMembershipInfoProvider(createSelfSignedData(), identityDeserializerFactory)
-
 	mspID := coreConfig.LocalMSPID
+
+	membershipInfoProvider := privdata.NewMembershipInfoProvider(mspID, createSelfSignedData(), identityDeserializerFactory)
 
 	chaincodeInstallPath := filepath.Join(coreconfig.GetPath("peer.fileSystemPath"), "lifecycle", "chaincodes")
 	ccStore := persistence.NewStore(chaincodeInstallPath)
@@ -365,6 +375,7 @@ func serve(args []string) error {
 	}
 
 	lifecycleValidatorCommitter := &lifecycle.ValidatorCommitter{
+		CoreConfig:                   coreConfig,
 		Resources:                    lifecycleResources,
 		LegacyDeployedCCInfoProvider: &lscc.DeployedCCInfoProvider{},
 	}
@@ -502,15 +513,14 @@ func serve(args []string) error {
 
 	chaincodeConfig := chaincode.GlobalConfig()
 
-	var client *docker.Client
-	var dockerVM *dockercontroller.DockerVM
+	var dockerBuilder container.DockerBuilder
 	if coreConfig.VMEndpoint != "" {
-		client, err = createDockerClient(coreConfig)
+		client, err := createDockerClient(coreConfig)
 		if err != nil {
 			logger.Panicf("cannot create docker client: %s", err)
 		}
 
-		dockerVM = &dockercontroller.DockerVM{
+		dockerVM := &dockercontroller.DockerVM{
 			PeerID:        coreConfig.PeerID,
 			NetworkID:     coreConfig.NetworkID,
 			BuildMetrics:  dockercontroller.NewBuildMetrics(opsSystem.Provider),
@@ -531,21 +541,28 @@ func serve(args []string) error {
 				"CORE_CHAINCODE_LOGGING_SHIM=" + chaincodeConfig.ShimLogLevel,
 				"CORE_CHAINCODE_LOGGING_FORMAT=" + chaincodeConfig.LogFormat,
 			},
+			MSPID: mspID,
 		}
 		if err := opsSystem.RegisterChecker("docker", dockerVM); err != nil {
 			logger.Panicf("failed to register docker health check: %s", err)
 		}
+		dockerBuilder = dockerVM
+	}
+
+	// docker is disabled when we're missing the docker config
+	if dockerBuilder == nil {
+		dockerBuilder = &disabledDockerBuilder{}
 	}
 
 	externalVM := &externalbuilder.Detector{
-		Builders:    externalbuilder.CreateBuilders(coreConfig.ExternalBuilders),
+		Builders:    externalbuilder.CreateBuilders(coreConfig.ExternalBuilders, mspID),
 		DurablePath: externalBuilderOutput,
 	}
 
 	buildRegistry := &container.BuildRegistry{}
 
 	containerRouter := &container.Router{
-		DockerBuilder:   dockerVM,
+		DockerBuilder:   dockerBuilder,
 		ExternalBuilder: externalVMAdapter{externalVM},
 		PackageProvider: &persistence.FallbackPackageLocator{
 			ChaincodePackageLocator: &persistence.ChaincodePackageLocator{

@@ -261,7 +261,8 @@ func (g *GossipService) DistributePrivateData(channelID string, txID string, pri
 	}
 
 	if err := handler.distributor.Distribute(txID, privData, blkHt); err != nil {
-		logger.Error("Failed to distributed private collection, txID", txID, "channel", channelID, "due to", err)
+		err := errors.WithMessagef(err, "failed to distribute private collection, txID %s, channel %s", txID, channelID)
+		logger.Error(err)
 		return err
 	}
 
@@ -307,14 +308,16 @@ func (g *GossipService) InitializeChannel(channelID string, ordererSource *order
 		PullRetryThreshold:             g.serviceConfig.PvtDataPullRetryThreshold,
 		SkipPullingInvalidTransactions: g.serviceConfig.SkipPullingInvalidTransactionsDuringCommit,
 	}
-	coordinator := gossipprivdata.NewCoordinator(gossipprivdata.Support{
+	selfSignedData := g.createSelfSignedData()
+	mspID := string(g.secAdv.OrgByPeerIdentity(selfSignedData.Identity))
+	coordinator := gossipprivdata.NewCoordinator(mspID, gossipprivdata.Support{
 		ChainID:            channelID,
 		CollectionStore:    support.CollectionStore,
 		Validator:          support.Validator,
 		Committer:          support.Committer,
 		Fetcher:            fetcher,
 		CapabilityProvider: support.CapabilityProvider,
-	}, store, g.createSelfSignedData(), g.metrics.PrivdataMetrics, coordinatorConfig,
+	}, store, selfSignedData, g.metrics.PrivdataMetrics, coordinatorConfig,
 		support.IdDeserializeFactory)
 
 	privdataConfig := gossipprivdata.GlobalConfig()

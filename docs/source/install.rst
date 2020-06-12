@@ -13,9 +13,8 @@ Hyperledger Fabric.
           Please visit the :doc:`prereqs` if you haven't previously installed
           it.
 
-          If you are using Docker Toolbox on Windows 7 or macOS, you
-          will need to use a location under ``C:\Users`` (Windows 7) or
-          ``/Users`` (macOS) when installing and running the samples.
+          If you are using Docker Toolbox or macOS, you
+          will need to use a location under ``/Users`` (macOS) when installing and running the samples.
 
           If you are using Docker for Mac, you will need to use a location
           under ``/Users``, ``/Volumes``, ``/private``, or ``/tmp``.  To use a different
@@ -25,6 +24,10 @@ Hyperledger Fabric.
           If you are using Docker for Windows, please consult the Docker
           documentation for `shared drives <https://docs.docker.com/docker-for-windows/#shared-drives>`__
           and use a location under one of the shared drives.
+
+.. note:: If you are running on **Mac**, you may need to install ``wget`` before proceeding.
+          The ``wget`` command is used to download binaries from GitHub releases.
+          To install wget, ``brew install wget``.
 
 Determine a location on your machine where you want to place the `fabric-samples`
 repository and enter that directory in a terminal window. The
@@ -48,12 +51,13 @@ the binaries and images.
 
 .. note:: If you want a specific release, pass a version identifier for Fabric,
           Fabric-ca and thirdparty Docker images.
-          The command below demonstrates how to download **Fabric v2.0.0 Beta release v2.0.0-beta**
+          The command below demonstrates how to download the latest production releases -
+          **Fabric v2.0.1** and **Fabric CA v1.4.6**
 
 .. code:: bash
 
   curl -sSL https://bit.ly/2ysbOFE | bash -s -- <fabric_version> <fabric-ca_version> <thirdparty_version>
-  curl -sSL https://bit.ly/2ysbOFE | bash -s -- 2.0.0-beta 1.4.4 0.4.18
+  curl -sSL https://bit.ly/2ysbOFE | bash -s -- 2.0.1 1.4.6 0.4.18
 
 .. note:: If you get an error running the above curl command, you may
           have too old a version of curl that does not handle
@@ -77,7 +81,8 @@ created above. It retrieves the following platform-specific binaries:
   * ``idemixgen``
   * ``orderer``,
   * ``peer``,
-  * ``fabric-ca-client``
+  * ``fabric-ca-client``,
+  * ``fabric-ca-server``
 
 and places them in the ``bin`` sub-directory of the current working
 directory.

@@ -101,7 +101,7 @@ noverify = [
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = "1.24.0"
+  version = "1.28.0"
 
 [[constraint]]
   name = "gopkg.in/alecthomas/kingpin.v2"
@@ -182,7 +182,7 @@ noverify = [
       non-go = false
 
 [[constraint]]
-  branch = "master"
+  branch = "release-2.0"
   name = "github.com/hyperledger/fabric-protos-go"
 
 [[constraint]]

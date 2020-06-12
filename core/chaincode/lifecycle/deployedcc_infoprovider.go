@@ -13,12 +13,12 @@ import (
 
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
-	"github.com/hyperledger/fabric-protos-go/msp"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/common/cauthdsl"
 	"github.com/hyperledger/fabric/common/util"
 	validationState "github.com/hyperledger/fabric/core/handlers/validation/api/state"
 	"github.com/hyperledger/fabric/core/ledger"
+	"github.com/hyperledger/fabric/core/peer"
 	"github.com/hyperledger/fabric/protoutil"
 
 	"github.com/pkg/errors"
@@ -43,6 +43,7 @@ var (
 )
 
 type ValidatorCommitter struct {
+	CoreConfig                   *peer.Config
 	Resources                    *Resources
 	LegacyDeployedCCInfoProvider LegacyDeployedCCInfoProvider
 }
@@ -151,7 +152,7 @@ func (vc *ValidatorCommitter) CollectionInfo(channelName, chaincodeName, collect
 
 	matches := ImplicitCollectionMatcher.FindStringSubmatch(collectionName)
 	if len(matches) == 2 {
-		return GenerateImplicitCollectionForOrg(matches[1]), nil
+		return vc.GenerateImplicitCollectionForOrg(matches[1]), nil
 	}
 
 	if definedChaincode.Collections != nil {
@@ -198,13 +199,20 @@ func (vc *ValidatorCommitter) ChaincodeImplicitCollections(channelName string) (
 	orgs := ac.Organizations()
 	implicitCollections := make([]*pb.StaticCollectionConfig, 0, len(orgs))
 	for _, org := range orgs {
-		implicitCollections = append(implicitCollections, GenerateImplicitCollectionForOrg(org.MSPID()))
+		implicitCollections = append(implicitCollections, vc.GenerateImplicitCollectionForOrg(org.MSPID()))
 	}
 
 	return implicitCollections, nil
 }
 
-func GenerateImplicitCollectionForOrg(mspid string) *pb.StaticCollectionConfig {
+// GenerateImplicitCollectionForOrg generates implicit collection for the org
+func (vc *ValidatorCommitter) GenerateImplicitCollectionForOrg(mspid string) *pb.StaticCollectionConfig {
+	// set collection MaximumPeerCount to 0 when its mspid does not match the local mspid
+	// set collection MaximumPeerCount to 1 when its mspid matches the local mspid (i.e., peer's own org)
+	maxPeerCount := int32(0)
+	if mspid == vc.CoreConfig.LocalMSPID {
+		maxPeerCount = 1
+	}
 	return &pb.StaticCollectionConfig{
 		Name: ImplicitCollectionNameForOrg(mspid),
 		MemberOrgsPolicy: &pb.CollectionPolicyConfig{
@@ -212,6 +220,8 @@ func GenerateImplicitCollectionForOrg(mspid string) *pb.StaticCollectionConfig {
 				SignaturePolicy: cauthdsl.SignedByMspMember(mspid),
 			},
 		},
+		RequiredPeerCount: 0,
+		MaximumPeerCount:  maxPeerCount,
 	}
 }
 
@@ -265,35 +275,6 @@ func (vc *ValidatorCommitter) ImplicitCollectionEndorsementPolicyAsBytes(channel
 	}), nil, nil
 }
 
-func (vc *ValidatorCommitter) LifecycleEndorsementPolicyAsBytes(channelID string) ([]byte, error) {
-	channelConfig := vc.Resources.ChannelConfigSource.GetStableChannelConfig(channelID)
-	if channelConfig == nil {
-		return nil, errors.Errorf("could not get channel config for channel '%s'", channelID)
-	}
-
-	if _, ok := channelConfig.PolicyManager().GetPolicy(LifecycleEndorsementPolicyRef); ok {
-		return LifecycleDefaultEndorsementPolicyBytes, nil
-	}
-
-	// This was a channel which was upgraded or did not define a lifecycle endorsement policy, use a default
-	// of "a majority of orgs must have a member sign".
-	ac, ok := channelConfig.ApplicationConfig()
-	if !ok {
-		return nil, errors.Errorf("could not get application config for channel '%s'", channelID)
-	}
-	orgs := ac.Organizations()
-	mspids := make([]string, 0, len(orgs))
-	for _, org := range orgs {
-		mspids = append(mspids, org.MSPID())
-	}
-
-	return protoutil.MarshalOrPanic(&cb.ApplicationPolicy{
-		Type: &cb.ApplicationPolicy_SignaturePolicy{
-			SignaturePolicy: cauthdsl.SignedByNOutOfGivenRole(int32(len(mspids)/2+1), msp.MSPRole_MEMBER, mspids),
-		},
-	}), nil
-}
-
 // ValidationInfo returns the name and arguments of the validation plugin for the supplied
 // chaincode. The function returns two types of errors, unexpected errors and validation
 // errors. The reason for this is that this function is called from the validation code,
@@ -318,7 +299,7 @@ func (vc *ValidatorCommitter) ValidationInfo(channelID, chaincodeName string, qe
 	}
 
 	if chaincodeName == LifecycleNamespace {
-		b, err := vc.LifecycleEndorsementPolicyAsBytes(channelID)
+		b, err := vc.Resources.LifecycleEndorsementPolicyAsBytes(channelID)
 		if err != nil {
 			return "", nil, errors.WithMessage(err, "unexpected failure to create lifecycle endorsement policy"), nil
 		}

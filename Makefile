@@ -43,11 +43,7 @@
 #   - help-docs - generate the command reference docs
 
 ALPINE_VER ?= 3.10
-BASE_VERSION = 2.0.0
-PREV_VERSION = 2.0.0-beta
-
-# BASEIMAGE_RELEASE should be removed now
-BASEIMAGE_RELEASE = 0.4.18
+BASE_VERSION = 2.0.2
 
 # 3rd party image version
 # These versions are also set in the runners in ./integration/runners/
@@ -64,6 +60,9 @@ BUILD_DIR ?= build
 EXTRA_VERSION ?= $(shell git rev-parse --short HEAD)
 PROJECT_VERSION=$(BASE_VERSION)-snapshot-$(EXTRA_VERSION)
 
+#TWO_DIGIT_VERSION is derived, e.g. "2.0", especially useful as a local tag for two digit references to most recent baseos and ccenv patch releases
+TWO_DIGIT_VERSION = $(shell echo $(BASE_VERSION) | cut -d'.' -f1,2)
+
 PKGNAME = github.com/hyperledger/fabric
 ARCH=$(shell go env GOARCH)
 MARCH=$(shell go env GOOS)-$(shell go env GOARCH)
@@ -73,7 +72,6 @@ METADATA_VAR = Version=$(BASE_VERSION)
 METADATA_VAR += CommitSHA=$(EXTRA_VERSION)
 METADATA_VAR += BaseDockerLabel=$(BASE_DOCKER_LABEL)
 METADATA_VAR += DockerNamespace=$(DOCKER_NS)
-METADATA_VAR += BaseDockerNamespace=$(BASE_DOCKER_NS)
 
 GO_VER = $(shell grep "GO_VER" ci.properties |cut -d'=' -f2-)
 GO_TAGS ?=
@@ -189,10 +187,6 @@ protos: gotools
 	@echo "Compiling non-API protos..."
 	./scripts/compile_protos.sh
 
-.PHONY: changelog
-changelog:
-	./scripts/changelog.sh v$(PREV_VERSION) v$(BASE_VERSION)
-
 .PHONY: native
 native: $(RELEASE_EXES)
 
@@ -226,6 +220,7 @@ $(BUILD_DIR)/images/%/$(DUMMY):
 		$(BUILD_ARGS) \
 		-t $(DOCKER_NS)/fabric-$* ./$(BUILD_CONTEXT)
 	docker tag $(DOCKER_NS)/fabric-$* $(DOCKER_NS)/fabric-$*:$(BASE_VERSION)
+	docker tag $(DOCKER_NS)/fabric-$* $(DOCKER_NS)/fabric-$*:$(TWO_DIGIT_VERSION)
 	docker tag $(DOCKER_NS)/fabric-$* $(DOCKER_NS)/fabric-$*:$(DOCKER_TAG)
 	@touch $@
 

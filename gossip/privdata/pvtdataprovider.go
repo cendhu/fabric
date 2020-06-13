@@ -321,6 +321,7 @@ func (pdp *PvtdataProvider) populateFromTransientStore(pvtdata rwsetByKeys, pvtd
 				pdp.logger.Warningf("The PvtRwset of PvtSimulationResultsWithConfig for txID [%s] is nil. Skipping.", k.txID)
 				continue
 			}
+			done := false
 			for _, ns := range simRes.PvtRwset.NsPvtRwset {
 				for _, col := range ns.CollectionPvtRwset {
 					key := rwSetKey{
@@ -338,8 +339,16 @@ func (pdp *PvtdataProvider) populateFromTransientStore(pvtdata rwsetByKeys, pvtd
 					pvtdata[key] = col.Rwset
 					// remove key from missing
 					delete(pvtdataRetrievalInfo.eligibleMissingKeys, key)
+					done = true
+					break
 				} // iterating over all collections
+				if done {
+					break
+				}
 			} // iterating over all namespaces
+			if done {
+				break
+			}
 		} // iterating over the TxPvtRWSet results
 	}
 }

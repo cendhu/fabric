@@ -62,10 +62,9 @@ func (builder *expiryScheduleBuilder) getExpiryInfo() []*expiryInfo {
 
 func buildExpirySchedule(
 	btlPolicy pvtdatapolicy.BTLPolicy,
-	pvtUpdates *privacyenabledstate.PvtUpdateBatch,
-	hashedUpdates *privacyenabledstate.HashedUpdateBatch) ([]*expiryInfo, error) {
+	pvtUpdates privacyenabledstate.PvtdataCompositeKeyMap,
+	hashedUpdates privacyenabledstate.HashedCompositeKeyMap) ([]*expiryInfo, error) {
 
-	hashedUpdateKeys := hashedUpdates.ToCompositeKeyMap()
 	expiryScheduleBuilder := newExpiryScheduleBuilder(btlPolicy)
 
 	logger.Debugf("Building the expiry schedules based on the update batch")
@@ -75,7 +74,7 @@ func buildExpirySchedule(
 	// Note that the 'hashedUpdateKeys'  may be superset of the pvtUpdates. This is because,
 	// the peer may not receive all the private data either because the peer is not eligible for certain private data
 	// or because we allow proceeding with the missing private data data
-	for pvtUpdateKey, vv := range pvtUpdates.ToCompositeKeyMap() {
+	for pvtUpdateKey, vv := range pvtUpdates {
 		keyHash := util.ComputeStringHash(pvtUpdateKey.Key)
 		hashedCompisiteKey := privacyenabledstate.HashedCompositeKey{
 			Namespace:      pvtUpdateKey.Namespace,
@@ -86,11 +85,11 @@ func buildExpirySchedule(
 		if err := expiryScheduleBuilder.add(pvtUpdateKey.Namespace, pvtUpdateKey.CollectionName, pvtUpdateKey.Key, keyHash, vv); err != nil {
 			return nil, err
 		}
-		delete(hashedUpdateKeys, hashedCompisiteKey)
+		delete(hashedUpdates, hashedCompisiteKey)
 	}
 
 	// Add entries for the leftover key hashes i.e., the hashes corresponding to which there is not private key is present
-	for hashedUpdateKey, vv := range hashedUpdateKeys {
+	for hashedUpdateKey, vv := range hashedUpdates {
 		logger.Debugf("Adding expiry schedule for key hash [%s]", &hashedUpdateKey)
 		if err := expiryScheduleBuilder.add(hashedUpdateKey.Namespace, hashedUpdateKey.CollectionName, "", []byte(hashedUpdateKey.KeyHash), vv); err != nil {
 			return nil, err

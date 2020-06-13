@@ -200,9 +200,11 @@ func (h HashedUpdateBatch) Delete(ns, coll string, key []byte, version *version.
 	h.UpdateMap.Delete(ns, coll, string(key), version)
 }
 
+type HashedCompositeKeyMap map[HashedCompositeKey]*statedb.VersionedValue
+
 // ToCompositeKeyMap rearranges the update batch data in the form of a single map
-func (h HashedUpdateBatch) ToCompositeKeyMap() map[HashedCompositeKey]*statedb.VersionedValue {
-	m := make(map[HashedCompositeKey]*statedb.VersionedValue)
+func (h HashedUpdateBatch) ToCompositeKeyMap() HashedCompositeKeyMap {
+	m := make(HashedCompositeKeyMap)
 	for ns, nsBatch := range h.UpdateMap {
 		for _, coll := range nsBatch.GetCollectionNames() {
 			for key, vv := range nsBatch.GetUpdates(coll) {

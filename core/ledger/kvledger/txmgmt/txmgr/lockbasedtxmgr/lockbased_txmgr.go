@@ -500,12 +500,19 @@ func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, *fastcache.Stats, *txmgr
 		panic("validateAndPrepare() method should have been called before calling commit()")
 	}
 
-	startUpdatePurgeEntriesTime := time.Now()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		t.pvtdataPurgeMgr.UpdateBookeeping(t.current.batch.PvtUpdates.ToCompositeKeyMap(), t.current.batch.HashUpdates.ToCompositeKeyMap())
+	}()
+
+	// startUpdatePurgeEntriesTime := time.Now()
 	if err := t.pvtdataPurgeMgr.DeleteExpiredAndUpdateBookkeeping(
 		t.current.batch.PvtUpdates, t.current.batch.HashUpdates); err != nil {
 		return nil, nil, nil, err
 	}
-	elapsedUpdatePurgeEntriesTime := time.Since(startUpdatePurgeEntriesTime)
+	// elapsedUpdatePurgeEntriesTime := time.Since(startUpdatePurgeEntriesTime)
 
 	commitHeight := version.NewHeight(t.current.blockNum(), t.current.maxTxNumber())
 	startLockAcquireTime := time.Now()
@@ -535,8 +542,9 @@ func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, *fastcache.Stats, *txmgr
 	// In the case of error state listeners will not receive this call - instead a peer panic is caused by the ledger upon receiving
 	// an error from this function
 	t.updateStateListeners()
+	wg.Wait()
 	return &txmgr.CacheMetrics{ehit, emiss, chit, cmiss}, stats,
-		&txmgr.CommitDuration{elapsedLockAcquireTime, elapsedUpdatePurgeEntriesTime, elapsedStateDBCommitTime, elapsedDeletePurgeEntriesTime},
+		&txmgr.CommitDuration{elapsedLockAcquireTime, 0, elapsedStateDBCommitTime, elapsedDeletePurgeEntriesTime},
 		nil
 }
 

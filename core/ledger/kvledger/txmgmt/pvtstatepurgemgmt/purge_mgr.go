@@ -24,6 +24,7 @@ type PurgeMgr interface {
 	PrepareForExpiringKeys(expiringAtBlk uint64)
 	// WaitForPrepareToFinish holds the caller till the background goroutine launched by 'PrepareForExpiringKeys' is finished
 	WaitForPrepareToFinish()
+	UpdateBookeeping(pvtUpdates privacyenabledstate.PvtdataCompositeKeyMap, hashedUpdates privacyenabledstate.HashedCompositeKeyMap) error
 	// DeleteExpiredAndUpdateBookkeeping updates the bookkeeping and modifies the update batch by adding the deletes for the expired pvtdata
 	DeleteExpiredAndUpdateBookkeeping(
 		pvtUpdates *privacyenabledstate.PvtUpdateBatch,
@@ -162,11 +163,6 @@ func (p *purgeMgr) DeleteExpiredAndUpdateBookkeeping(
 		return p.workingset.err
 	}
 
-	listExpiryInfo, err := buildExpirySchedule(p.btlPolicy, pvtUpdates, hashedUpdates)
-	if err != nil {
-		return err
-	}
-
 	// For each key selected for purging, check if the key is not getting updated in the current block,
 	// add its deletion in the update batches for pvt and hashed updates
 	for compositeHashedKey, keyAndVersion := range p.workingset.toPurge {
@@ -192,7 +188,16 @@ func (p *purgeMgr) DeleteExpiredAndUpdateBookkeeping(
 			pvtUpdates.Delete(ns, coll, key, expiringTxVersion)
 		}
 	}
+	return nil
+}
+
+func (p *purgeMgr) UpdateBookeeping(pvtUpdates privacyenabledstate.PvtdataCompositeKeyMap, hashedUpdates privacyenabledstate.HashedCompositeKeyMap) error {
+	listExpiryInfo, err := buildExpirySchedule(p.btlPolicy, pvtUpdates, hashedUpdates)
+	if err != nil {
+		return err
+	}
 	return p.expKeeper.updateBookkeeping(listExpiryInfo, nil)
+
 }
 
 // BlockCommitDone implements function in the interface 'PurgeMgr'

@@ -458,7 +458,8 @@ func (l *kvLedger) CommitLegacy(pvtdataAndBlock *ledger.BlockAndPvtData, commitO
 	logger.Debugf("[%s] Committing block [%d] to storage", l.ledgerID, blockNo)
 	l.blockAPIsRWLock.Lock()
 	defer l.blockAPIsRWLock.Unlock()
-	if err = l.blockStore.CommitWithPvtData(pvtdataAndBlock); err != nil {
+	pvtStoreCommitTime, blkStoreCommitTime, err := l.blockStore.CommitWithPvtData(pvtdataAndBlock)
+	if err != nil {
 		return err
 	}
 	elapsedBlockstorageAndPvtdataCommit := time.Since(startBlockstorageAndPvtdataCommit)
@@ -502,6 +503,8 @@ func (l *kvLedger) CommitLegacy(pvtdataAndBlock *ledger.BlockAndPvtData, commitO
 		cacheMetrics,
 		stats,
 		commitComponentDuration,
+		pvtStoreCommitTime,
+		blkStoreCommitTime,
 	)
 	return nil
 }
@@ -523,6 +526,8 @@ func (l *kvLedger) updateBlockStats(
 	cacheMetrics *txmgr.CacheMetrics,
 	stats *fastcache.Stats,
 	commitComponentDuration *txmgr.CommitDuration,
+	pvtStoreCommitTime time.Duration,
+	blkStoreCommitTime time.Duration,
 ) {
 	l.stats.updateBlockProcessingTime(blockProcessingTime)
 	l.stats.updateBlockstorageAndPvtdataCommitTime(blockstorageAndPvtdataCommitTime)
@@ -533,6 +538,8 @@ func (l *kvLedger) updateBlockStats(
 		cacheMetrics.CacheCommitHit, cacheMetrics.CacheCommitMiss, stats.Collisions, stats.BytesSize, stats.EntriesCount)
 	l.stats.updateCommitComponentDuration(commitComponentDuration.Lock, commitComponentDuration.UpdatePurgeEntries,
 		commitComponentDuration.StateDB, commitComponentDuration.DeletePurgeEntries)
+	l.stats.updatePvtStoreCommitTime(pvtStoreCommitTime)
+	l.stats.updateBlockStoreCommitTime(blkStoreCommitTime)
 }
 
 // GetMissingPvtDataInfoForMostRecentBlocks returns the missing private data information for the

@@ -9,6 +9,7 @@ package ledgerstorage
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric/common/flogging"
@@ -117,16 +118,17 @@ func (s *Store) Init(btlPolicy pvtdatapolicy.BTLPolicy) {
 }
 
 // CommitWithPvtData commits the block and the corresponding pvt data in an atomic operation
-func (s *Store) CommitWithPvtData(blockAndPvtdata *ledger.BlockAndPvtData) error {
+func (s *Store) CommitWithPvtData(blockAndPvtdata *ledger.BlockAndPvtData) (time.Duration, time.Duration, error) {
 	blockNum := blockAndPvtdata.Block.Header.Number
 	s.rwlock.Lock()
 	defer s.rwlock.Unlock()
 
 	pvtBlkStoreHt, err := s.pvtdataStore.LastCommittedBlockHeight()
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 
+	pvtStoreCommit := time.Now()
 	if pvtBlkStoreHt < blockNum+1 { // The pvt data store sanity check does not allow rewriting the pvt data.
 		// when re-processing blocks (rejoin the channel or re-fetching last few block),
 		// skip the pvt data commit to the pvtdata blockstore
@@ -141,15 +143,18 @@ func (s *Store) CommitWithPvtData(blockAndPvtdata *ledger.BlockAndPvtData) error
 		// too in the pvtdataStore as we do for the publicdata in the case of blockStore.
 		pvtData, missingPvtData := constructPvtDataAndMissingData(blockAndPvtdata)
 		if err := s.pvtdataStore.Commit(blockAndPvtdata.Block.Header.Number, pvtData, missingPvtData); err != nil {
-			return err
+			return 0, 0, err
 		}
 	} else {
 		logger.Debugf("Skipping writing block [%d] to pvt block store as the store height is [%d]", blockNum, pvtBlkStoreHt)
 	}
+	elapsedPvtStoreCommit := time.Since(pvtStoreCommit)
 
+	blockStoreCommit := time.Now()
 	if err := s.AddBlock(blockAndPvtdata.Block); err != nil {
-		return err
+		return 0, 0, err
 	}
+	elapsedBlockStoreCommit := time.Since(blockStoreCommit)
 
 	if pvtBlkStoreHt == blockNum+1 {
 		// we reach here only when the pvtdataStore was ahead
@@ -158,7 +163,7 @@ func (s *Store) CommitWithPvtData(blockAndPvtdata *ledger.BlockAndPvtData) error
 		s.isPvtstoreAheadOfBlockstore.Store(false)
 	}
 
-	return nil
+	return elapsedPvtStoreCommit, elapsedBlockStoreCommit, nil
 }
 
 func constructPvtDataAndMissingData(blockAndPvtData *ledger.BlockAndPvtData) ([]*ledger.TxPvtData,

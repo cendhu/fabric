@@ -26,6 +26,9 @@ type stats struct {
 	cacheSize                      metrics.Histogram
 	cacheEntries                   metrics.Gauge
 	lockWaitTime                   metrics.Histogram
+	updatePurgeEntries             metrics.Histogram
+	stateDBCommit                  metrics.Histogram
+	deletePurgeEntries             metrics.Histogram
 }
 
 func newStats(metricsProvider metrics.Provider) *stats {
@@ -43,6 +46,9 @@ func newStats(metricsProvider metrics.Provider) *stats {
 	stats.cacheSize = metricsProvider.NewHistogram(cacheSizeOpts)
 	stats.cacheEntries = metricsProvider.NewGauge(cacheEntriesOpts)
 	stats.lockWaitTime = metricsProvider.NewHistogram(lockWaitTimeOpts)
+	stats.updatePurgeEntries = metricsProvider.NewHistogram(updatePurgeEntriesOpts)
+	stats.stateDBCommit = metricsProvider.NewHistogram(stateDBCommitOpts)
+	stats.deletePurgeEntries = metricsProvider.NewHistogram(deletePurgeEntriesOpts)
 	return stats
 }
 
@@ -73,10 +79,6 @@ func (s *ledgerStats) updateHistorydbCommitTime(timeTaken time.Duration) {
 	s.stats.historydbCommitTime.With("channel", s.ledgerid).Observe(timeTaken.Seconds())
 }
 
-func (s *ledgerStats) updateLockWaitTime(timeTaken time.Duration) {
-	s.stats.lockWaitTime.With("channel", s.ledgerid).Observe((timeTaken.Seconds()))
-}
-
 func (s *ledgerStats) updateCacheMetrics(m ...uint64) {
 	s.stats.cacheHitEndorsement.With("channel", s.ledgerid).Add(float64(m[0]))
 	s.stats.cacheMissEndorsement.With("channel", s.ledgerid).Add(float64(m[1]))
@@ -85,6 +87,13 @@ func (s *ledgerStats) updateCacheMetrics(m ...uint64) {
 	s.stats.cacheCollisions.With("channel", s.ledgerid).Observe(float64(m[4]))
 	s.stats.cacheSize.With("channel", s.ledgerid).Observe(float64(m[5]))
 	s.stats.cacheEntries.With("channel", s.ledgerid).Set(float64(m[6]))
+}
+
+func (s *ledgerStats) updateCommitComponentDuration(m ...time.Duration) {
+	s.stats.lockWaitTime.With("channel", s.ledgerid).Observe((m[0].Seconds()))
+	s.stats.updatePurgeEntries.With("channel", s.ledgerid).Observe((m[1].Seconds()))
+	s.stats.stateDBCommit.With("channel", s.ledgerid).Observe((m[2].Seconds()))
+	s.stats.deletePurgeEntries.With("channel", s.ledgerid).Observe((m[3].Seconds()))
 }
 
 func (s *ledgerStats) updateTransactionsStats(
@@ -229,6 +238,36 @@ var (
 		Namespace:    "ledger",
 		Subsystem:    "",
 		Name:         "lock_wait_time",
+		Help:         "Time taken in seconds for ledger block processing.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+		Buckets:      []float64{0.005, 0.01, 0.015, 0.05, 0.1, 1, 10},
+	}
+
+	updatePurgeEntriesOpts = metrics.HistogramOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "update_purge_entries_time",
+		Help:         "Time taken in seconds for ledger block processing.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+		Buckets:      []float64{0.005, 0.01, 0.015, 0.05, 0.1, 1, 10},
+	}
+
+	stateDBCommitOpts = metrics.HistogramOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "statedb_commit_time",
+		Help:         "Time taken in seconds for ledger block processing.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+		Buckets:      []float64{0.005, 0.01, 0.015, 0.05, 0.1, 1, 10},
+	}
+
+	deletePurgeEntriesOpts = metrics.HistogramOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "delete_purge_entries_time",
 		Help:         "Time taken in seconds for ledger block processing.",
 		LabelNames:   []string{"channel"},
 		StatsdFormat: "%{#fqname}.%{channel}",

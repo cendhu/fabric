@@ -128,33 +128,43 @@ func (s *Store) CommitWithPvtData(blockAndPvtdata *ledger.BlockAndPvtData) (time
 		return 0, 0, err
 	}
 
-	pvtStoreCommit := time.Now()
-	if pvtBlkStoreHt < blockNum+1 { // The pvt data store sanity check does not allow rewriting the pvt data.
-		// when re-processing blocks (rejoin the channel or re-fetching last few block),
-		// skip the pvt data commit to the pvtdata blockstore
-		logger.Debugf("Writing block [%d] to pvt block store", blockNum)
-		// If a state fork occurs during a regular block commit,
-		// we have a mechanism to drop all blocks followed by refetching of blocks
-		// and re-processing them. In the current way of doing this, we only drop
-		// the block files (and related artifacts) but we do not drop/overwrite the
-		// pvtdatastorage as it might leads to data loss.
-		// During block reprocessing, as there is a possibility of an invalid pvtdata
-		// transaction to become valid, we store the pvtdata of invalid transactions
-		// too in the pvtdataStore as we do for the publicdata in the case of blockStore.
-		pvtData, missingPvtData := constructPvtDataAndMissingData(blockAndPvtdata)
-		if err := s.pvtdataStore.Commit(blockAndPvtdata.Block.Header.Number, pvtData, missingPvtData); err != nil {
-			return 0, 0, err
-		}
-	} else {
-		logger.Debugf("Skipping writing block [%d] to pvt block store as the store height is [%d]", blockNum, pvtBlkStoreHt)
-	}
-	elapsedPvtStoreCommit := time.Since(pvtStoreCommit)
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	blockStoreCommit := time.Now()
-	if err := s.AddBlock(blockAndPvtdata.Block); err != nil {
-		return 0, 0, err
-	}
-	elapsedBlockStoreCommit := time.Since(blockStoreCommit)
+	go func() {
+		defer wg.Done()
+		// pvtStoreCommit := time.Now()
+		if pvtBlkStoreHt < blockNum+1 { // The pvt data store sanity check does not allow rewriting the pvt data.
+			// when re-processing blocks (rejoin the channel or re-fetching last few block),
+			// skip the pvt data commit to the pvtdata blockstore
+			logger.Debugf("Writing block [%d] to pvt block store", blockNum)
+			// If a state fork occurs during a regular block commit,
+			// we have a mechanism to drop all blocks followed by refetching of blocks
+			// and re-processing them. In the current way of doing this, we only drop
+			// the block files (and related artifacts) but we do not drop/overwrite the
+			// pvtdatastorage as it might leads to data loss.
+			// During block reprocessing, as there is a possibility of an invalid pvtdata
+			// transaction to become valid, we store the pvtdata of invalid transactions
+			// too in the pvtdataStore as we do for the publicdata in the case of blockStore.
+			pvtData, missingPvtData := constructPvtDataAndMissingData(blockAndPvtdata)
+			if err := s.pvtdataStore.Commit(blockAndPvtdata.Block.Header.Number, pvtData, missingPvtData); err != nil {
+				return
+			}
+		} else {
+			logger.Debugf("Skipping writing block [%d] to pvt block store as the store height is [%d]", blockNum, pvtBlkStoreHt)
+		}
+		// elapsedPvtStoreCommit := time.Since(pvtStoreCommit)
+	}()
+	// blockStoreCommit := time.Now()
+	go func() {
+		defer wg.Done()
+		if err := s.AddBlock(blockAndPvtdata.Block); err != nil {
+			return
+		}
+	}()
+	// elapsedBlockStoreCommit := time.Since(blockStoreCommit)
+
+	wg.Wait()
 
 	if pvtBlkStoreHt == blockNum+1 {
 		// we reach here only when the pvtdataStore was ahead
@@ -163,7 +173,7 @@ func (s *Store) CommitWithPvtData(blockAndPvtdata *ledger.BlockAndPvtData) (time
 		s.isPvtstoreAheadOfBlockstore.Store(false)
 	}
 
-	return elapsedPvtStoreCommit, elapsedBlockStoreCommit, nil
+	return 0, 0, nil
 }
 
 func constructPvtDataAndMissingData(blockAndPvtData *ledger.BlockAndPvtData) ([]*ledger.TxPvtData,

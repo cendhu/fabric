@@ -100,12 +100,12 @@ func (s *ledgerStats) updateCommitComponentDuration(m ...time.Duration) {
 	s.stats.deletePurgeEntries.With("channel", s.ledgerid).Observe((m[3].Seconds()))
 }
 
-func (s *ledgerStats) updatePvtStoreCommitTime(timeTake time.Duration) {
-
+func (s *ledgerStats) updatePvtStoreCommitTime(timeTaken time.Duration) {
+	s.stats.pvtStoreCommitTime.With("channel", s.ledgerid).Observe(timeTaken.Seconds())
 }
 
-func (s *ledgerStats) updateBlockStoreCommitTime(timeTake time.Duration) {
-
+func (s *ledgerStats) updateBlockStoreCommitTime(timeTaken time.Duration) {
+	s.stats.blockStoreCommitTime.With("channel", s.ledgerid).Observe(timeTaken.Seconds())
 }
 
 func (s *ledgerStats) updateTransactionsStats(

@@ -269,7 +269,7 @@ var (
 	stateDBCommitOpts = metrics.HistogramOpts{
 		Namespace:    "ledger",
 		Subsystem:    "",
-		Name:         "statedb_commit_time",
+		Name:         "statedb_only_commit_time",
 		Help:         "Time taken in seconds for ledger block processing.",
 		LabelNames:   []string{"channel"},
 		StatsdFormat: "%{#fqname}.%{channel}",

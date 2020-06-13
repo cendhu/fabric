@@ -29,6 +29,8 @@ type stats struct {
 	updatePurgeEntries             metrics.Histogram
 	stateDBCommit                  metrics.Histogram
 	deletePurgeEntries             metrics.Histogram
+	pvtStoreCommitTime             metrics.Histogram
+	blockStoreCommitTime           metrics.Histogram
 }
 
 func newStats(metricsProvider metrics.Provider) *stats {
@@ -49,6 +51,8 @@ func newStats(metricsProvider metrics.Provider) *stats {
 	stats.updatePurgeEntries = metricsProvider.NewHistogram(updatePurgeEntriesOpts)
 	stats.stateDBCommit = metricsProvider.NewHistogram(stateDBCommitOpts)
 	stats.deletePurgeEntries = metricsProvider.NewHistogram(deletePurgeEntriesOpts)
+	stats.pvtStoreCommitTime = metricsProvider.NewHistogram(pvtStoreCommitTimeOpts)
+	stats.blockStoreCommitTime = metricsProvider.NewHistogram(blockStoreCommitTimeOpts)
 	return stats
 }
 
@@ -94,6 +98,14 @@ func (s *ledgerStats) updateCommitComponentDuration(m ...time.Duration) {
 	s.stats.updatePurgeEntries.With("channel", s.ledgerid).Observe((m[1].Seconds()))
 	s.stats.stateDBCommit.With("channel", s.ledgerid).Observe((m[2].Seconds()))
 	s.stats.deletePurgeEntries.With("channel", s.ledgerid).Observe((m[3].Seconds()))
+}
+
+func (s *ledgerStats) updatePvtStoreCommitTime(timeTake time.Duration) {
+
+}
+
+func (s *ledgerStats) updateBlockStoreCommitTime(timeTake time.Duration) {
+
 }
 
 func (s *ledgerStats) updateTransactionsStats(
@@ -268,6 +280,26 @@ var (
 		Namespace:    "ledger",
 		Subsystem:    "",
 		Name:         "delete_purge_entries_time",
+		Help:         "Time taken in seconds for ledger block processing.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+		Buckets:      []float64{0.005, 0.01, 0.015, 0.05, 0.1, 1, 10},
+	}
+
+	pvtStoreCommitTimeOpts = metrics.HistogramOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "pvt_store_commit_time",
+		Help:         "Time taken in seconds for ledger block processing.",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+		Buckets:      []float64{0.005, 0.01, 0.015, 0.05, 0.1, 1, 10},
+	}
+
+	blockStoreCommitTimeOpts = metrics.HistogramOpts{
+		Namespace:    "ledger",
+		Subsystem:    "",
+		Name:         "block_store_commit_time",
 		Help:         "Time taken in seconds for ledger block processing.",
 		LabelNames:   []string{"channel"},
 		StatsdFormat: "%{#fqname}.%{channel}",

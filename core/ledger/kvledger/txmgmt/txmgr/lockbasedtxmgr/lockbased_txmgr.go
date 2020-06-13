@@ -470,7 +470,7 @@ func (txmgr *LockBasedTxMgr) Shutdown() {
 }
 
 // Commit implements method in interface `txmgmt.TxMgr`
-func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, *fastcache.Stats, time.Duration, error) {
+func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, *fastcache.Stats, *txmgr.CommitDuration, error) {
 	// we need to acquire a lock on oldBlockCommit. The following are the two reasons:
 	// (1) the DeleteExpiredAndUpdateBookkeeping() would perform incorrect operation if
 	//        toPurgeList is updated by RemoveStaleAndCommitPvtDataOfOldBlocks().
@@ -500,21 +500,25 @@ func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, *fastcache.Stats, time.D
 		panic("validateAndPrepare() method should have been called before calling commit()")
 	}
 
+	startUpdatePurgeEntriesTime := time.Now()
 	if err := t.pvtdataPurgeMgr.DeleteExpiredAndUpdateBookkeeping(
 		t.current.batch.PvtUpdates, t.current.batch.HashUpdates); err != nil {
-		return nil, nil, 0, err
+		return nil, nil, nil, err
 	}
+	elapsedUpdatePurgeEntriesTime := time.Since(startUpdatePurgeEntriesTime)
 
 	commitHeight := version.NewHeight(t.current.blockNum(), t.current.maxTxNumber())
 	startLockAcquireTime := time.Now()
 	t.commitRWLock.Lock()
 	elapsedLockAcquireTime := time.Since(startLockAcquireTime)
+	startStateDBCommitTime := time.Now()
 	logger.Debugf("Write lock acquired for committing updates to state database")
 	ehit, emiss, chit, cmiss, stats, err := t.db.ApplyPrivacyAwareUpdates(t.current.batch, commitHeight)
 	if err != nil {
 		t.commitRWLock.Unlock()
-		return nil, nil, 0, err
+		return nil, nil, nil, err
 	}
+	elapsedStateDBCommitTime := time.Since(startStateDBCommitTime)
 	t.commitRWLock.Unlock()
 	// only while holding a lock on oldBlockCommit, we should clear the cache as the
 	// cache is being used by the old pvtData committer to load the version of
@@ -522,14 +526,18 @@ func (t *LockBasedTxMgr) Commit() (*txmgr.CacheMetrics, *fastcache.Stats, time.D
 	t.clearCache()
 	logger.Debugf("Updates committed to state database and the write lock is released")
 
+	startDeletePurgeEntriesTime := time.Now()
 	// purge manager should be called (in this call the purge mgr removes the expiry entries from schedules) after committing to statedb
 	if err := t.pvtdataPurgeMgr.BlockCommitDone(); err != nil {
-		return nil, nil, 0, err
+		return nil, nil, nil, err
 	}
+	elapsedDeletePurgeEntriesTime := time.Since(startDeletePurgeEntriesTime)
 	// In the case of error state listeners will not receive this call - instead a peer panic is caused by the ledger upon receiving
 	// an error from this function
 	t.updateStateListeners()
-	return &txmgr.CacheMetrics{ehit, emiss, chit, cmiss}, stats, elapsedLockAcquireTime, nil
+	return &txmgr.CacheMetrics{ehit, emiss, chit, cmiss}, stats,
+		&txmgr.CommitDuration{elapsedLockAcquireTime, elapsedUpdatePurgeEntriesTime, elapsedStateDBCommitTime, elapsedDeletePurgeEntriesTime},
+		nil
 }
 
 // Rollback implements method in interface `txmgmt.TxMgr`

@@ -155,6 +155,7 @@ type PvtdataProvider struct {
 	listMissingPrivateDataDurationHistogram metrics.Histogram
 	fetchDurationHistogram                  metrics.Histogram
 	purgeDurationHistogram                  metrics.Histogram
+	pullDurationHistogram                   metrics.Histogram
 	transientStore                          *transientstore.Store
 	pullRetryThreshold                      time.Duration
 	prefetchedPvtdata                       util.PvtDataCollections
@@ -210,7 +211,9 @@ func (pdp *PvtdataProvider) RetrievePvtdata(pvtdataToRetrieve []*ledger.TxPvtdat
 	// POPULATE FROM TRANSIENT STORE
 	pdp.logger.Debugf("Could not find all collection private write sets in cache for block [%d]", pdp.blockNum)
 	pdp.logger.Debugf("Fetching %d collection private write sets from transient store", len(pvtdataRetrievalInfo.eligibleMissingKeys))
+	fetchFromTransientStore := time.Now()
 	pdp.populateFromTransientStore(pvtdata, pvtdataRetrievalInfo)
+	pdp.fetchDurationHistogram.Observe(time.Since(fetchFromTransientStore).Seconds())
 	if len(pvtdataRetrievalInfo.eligibleMissingKeys) == 0 {
 		pdp.logger.Debug("No missing collection private write sets to fetch from remote peers")
 		retrievedPvtdata.pvtdataRetrievalInfo = pvtdataRetrievalInfo
@@ -231,7 +234,7 @@ func (pdp *PvtdataProvider) RetrievePvtdata(pvtdataToRetrieve []*ledger.TxPvtdat
 		pdp.sleeper.Sleep(pullRetrySleepInterval)
 	}
 	elapsedPull := int64(time.Since(startPull) / time.Millisecond) // duration in ms
-	pdp.fetchDurationHistogram.Observe(time.Since(startPull).Seconds())
+	pdp.pullDurationHistogram.Observe(time.Since(startPull).Seconds())
 
 	if len(pvtdataRetrievalInfo.eligibleMissingKeys) == 0 {
 		pdp.logger.Debugf("Fetched all missing collection private write sets from remote peers for block [%d] (%dms)", pdp.blockNum, elapsedPull)

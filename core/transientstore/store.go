@@ -8,6 +8,7 @@ package transientstore
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset"
@@ -69,7 +70,12 @@ type storeProvider struct {
 type Store struct {
 	db       *leveldbhelper.DBHandle
 	ledgerID string
+	cache    cache
 }
+
+type cache map[string][]*EndorserPvtSimulationResults
+
+var mu sync.RWMutex
 
 // RwsetScanner helps iterating over results
 type RwsetScanner struct {
@@ -90,7 +96,7 @@ func NewStoreProvider(path string) (StoreProvider, error) {
 // OpenStore returns a handle to a ledgerId in Store
 func (provider *storeProvider) OpenStore(ledgerID string) (*Store, error) {
 	dbHandle := provider.dbProvider.GetDBHandle(ledgerID)
-	return &Store{db: dbHandle, ledgerID: ledgerID}, nil
+	return &Store{db: dbHandle, ledgerID: ledgerID, cache: make(cache)}, nil
 }
 
 // Close closes the TransientStoreProvider
@@ -102,7 +108,9 @@ func (provider *storeProvider) Close() {
 // in the transient store based on txid and the block height the private data was received at
 func (s *Store) Persist(txid string, blockHeight uint64,
 	privateSimulationResultsWithConfig *transientstore.TxPvtReadWriteSetWithConfigInfo) error {
-
+	mu.Lock()
+	s.cache[txid] = append(s.cache[txid], &EndorserPvtSimulationResults{blockHeight, privateSimulationResultsWithConfig})
+	mu.Unlock()
 	logger.Debugf("Persisting private data to transient store for txid [%s] at block height [%d]", txid, blockHeight)
 
 	dbBatch := leveldbhelper.NewUpdateBatch()
@@ -165,10 +173,22 @@ func (s *Store) GetTxPvtRWSetByTxid(txid string, filter ledger.PvtNsCollFilter) 
 	return &RwsetScanner{txid, iter, filter}, nil
 }
 
+func (s *Store) GetPvtData(txid string) []*EndorserPvtSimulationResults {
+	mu.RLock()
+	res := s.cache[txid]
+	mu.RUnlock()
+	return res
+}
+
 // PurgeByTxids removes private write sets of a given set of transactions from the
 // transient store. PurgeByTxids() is expected to be called by coordinator after
 // committing a block to ledger.
 func (s *Store) PurgeByTxids(txids []string) error {
+	for _, txid := range txids {
+		mu.Lock()
+		delete(s.cache, txid)
+		mu.Unlock()
+	}
 
 	logger.Debug("Purging private data from transient store for committed txids")
 

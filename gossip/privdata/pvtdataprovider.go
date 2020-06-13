@@ -294,20 +294,22 @@ func (pdp *PvtdataProvider) populateFromTransientStore(pvtdata rwsetByKeys, pvtd
 
 	// Put into pvtdata RW sets that are missing and found in the transient store
 	for k := range pvtdataRetrievalInfo.eligibleMissingKeys {
-		filter := ledger.NewPvtNsCollFilter()
-		filter.Add(k.namespace, k.collection)
-		iterator, err := pdp.transientStore.GetTxPvtRWSetByTxid(k.txID, filter)
-		if err != nil {
-			pdp.logger.Warningf("Failed fetching private data from transient store: Failed obtaining iterator from transient store: %s", err)
-			return
-		}
-		defer iterator.Close()
-		for {
-			res, err := iterator.Next()
-			if err != nil {
-				pdp.logger.Warningf("Failed fetching private data from transient store: Failed iterating over transient store data: %s", err)
-				return
-			}
+		// filter := ledger.NewPvtNsCollFilter()
+		// filter.Add(k.namespace, k.collection)
+		// iterator, err := pdp.transientStore.GetTxPvtRWSetByTxid(k.txID, filter)
+		results := pdp.transientStore.GetPvtData(k.txID)
+		// if err != nil {
+		// 	pdp.logger.Warningf("Failed fetching private data from transient store: Failed obtaining iterator from transient store: %s", err)
+		// 	return
+		// }
+		// defer iterator.Close()
+		// for {
+		for _, res := range results {
+			// res, err := iterator.Next()
+			// if err != nil {
+			// 	pdp.logger.Warningf("Failed fetching private data from transient store: Failed iterating over transient store data: %s", err)
+			// 	return
+			// }
 			if res == nil {
 				// End of iteration
 				break

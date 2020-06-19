@@ -13,6 +13,7 @@ import (
 	"github.com/hyperledger/fabric/core/ledger/kvledger/bookkeeping"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/statedb/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMetadataHintCorrectness(t *testing.T) {
@@ -20,7 +21,8 @@ func TestMetadataHintCorrectness(t *testing.T) {
 	defer bookkeepingTestEnv.Cleanup()
 	bookkeeper := bookkeepingTestEnv.TestProvider.GetDBHandle("ledger1", bookkeeping.MetadataPresenceIndicator)
 
-	metadataHint := newMetadataHint(bookkeeper)
+	metadataHint, err := newMetadataHint(bookkeeper)
+	require.NoError(t, err)
 	assert.False(t, metadataHint.metadataEverUsedFor("ns1"))
 
 	updates := NewUpdateBatch()
@@ -42,7 +44,8 @@ func TestMetadataHintCorrectness(t *testing.T) {
 	})
 
 	t.Run("MetadataFromPersistence", func(t *testing.T) {
-		metadataHintFromPersistence := newMetadataHint(bookkeeper)
+		metadataHintFromPersistence, err := newMetadataHint(bookkeeper)
+		require.NoError(t, err)
 		assert.True(t, metadataHintFromPersistence.metadataEverUsedFor("ns1"))
 		assert.True(t, metadataHintFromPersistence.metadataEverUsedFor("ns2"))
 		assert.True(t, metadataHintFromPersistence.metadataEverUsedFor("ns1_pvt"))
@@ -58,7 +61,9 @@ func TestMetadataHintOptimizationSkippingGoingToDB(t *testing.T) {
 	bookkeeper := bookkeepingTestEnv.TestProvider.GetDBHandle("ledger1", bookkeeping.MetadataPresenceIndicator)
 
 	mockVersionedDB := &mock.VersionedDB{}
-	db, err := NewDB(mockVersionedDB, "testledger", newMetadataHint(bookkeeper))
+	metadatahint, err := newMetadataHint(bookkeeper)
+	require.NoError(t, err)
+	db, err := NewDB(mockVersionedDB, "testledger", metadatahint)
 	assert.NoError(t, err)
 	updates := NewUpdateBatch()
 	updates.PubUpdates.PutValAndMetadata("ns1", "key", []byte("value"), []byte("metadata"), version.NewHeight(1, 1))

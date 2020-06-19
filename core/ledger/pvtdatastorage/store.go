@@ -586,7 +586,10 @@ func (s *Store) GetPvtDataByBlockNum(blockNum uint64, filter ledger.PvtNsCollFil
 	}
 	startKey, endKey := getDataKeysForRangeScanByBlockNum(blockNum)
 	logger.Debugf("Querying private data storage for write sets using startKey=%#v, endKey=%#v", startKey, endKey)
-	itr := s.db.GetIterator(startKey, endKey)
+	itr, err := s.db.GetIterator(startKey, endKey)
+	if err != nil {
+		return nil, err
+	}
 	defer itr.Release()
 
 	var blockPvtdata []*ledger.TxPvtData
@@ -658,7 +661,10 @@ func (s *Store) GetMissingPvtDataInfoForMostRecentBlocks(maxBlock int) (ledger.M
 	lastCommittedBlock := atomic.LoadUint64(&s.lastCommittedBlock)
 
 	startKey, endKey := createRangeScanKeysForEligibleMissingDataEntries(lastCommittedBlock)
-	dbItr := s.db.GetIterator(startKey, endKey)
+	dbItr, err := s.db.GetIterator(startKey, endKey)
+	if err != nil {
+		return nil, err
+	}
 	defer dbItr.Release()
 
 	for dbItr.Next() {
@@ -779,7 +785,10 @@ func (s *Store) purgeExpiredData(minBlkNum, maxBlkNum uint64) error {
 func (s *Store) retrieveExpiryEntries(minBlkNum, maxBlkNum uint64) ([]*expiryEntry, error) {
 	startKey, endKey := getExpiryKeysForRangeScan(minBlkNum, maxBlkNum)
 	logger.Debugf("retrieveExpiryEntries(): startKey=%#v, endKey=%#v", startKey, endKey)
-	itr := s.db.GetIterator(startKey, endKey)
+	itr, err := s.db.GetIterator(startKey, endKey)
+	if err != nil {
+		return nil, err
+	}
 	defer itr.Release()
 
 	var expiryEntries []*expiryEntry
@@ -816,7 +825,10 @@ func (s *Store) processCollElgEvents() {
 	s.purgerLock.Lock()
 	defer s.purgerLock.Unlock()
 	collElgStartKey, collElgEndKey := createRangeScanKeysForCollElg()
-	eventItr := s.db.GetIterator(collElgStartKey, collElgEndKey)
+	eventItr, err := s.db.GetIterator(collElgStartKey, collElgEndKey)
+	if err != nil {
+		panic(err)
+	}
 	defer eventItr.Release()
 	batch := leveldbhelper.NewUpdateBatch()
 	totalEntriesConverted := 0
@@ -835,7 +847,10 @@ func (s *Store) processCollElgEvents() {
 			for _, coll = range colls.Entries {
 				logger.Infof("Converting missing data entries from ineligible to eligible for [ns=%s, coll=%s]", ns, coll)
 				startKey, endKey := createRangeScanKeysForIneligibleMissingData(blkNum, ns, coll)
-				collItr := s.db.GetIterator(startKey, endKey)
+				collItr, err := s.db.GetIterator(startKey, endKey)
+				if err != nil {
+					panic(err)
+				}
 				collEntriesConverted := 0
 
 				for collItr.Next() { // each entry

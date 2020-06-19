@@ -74,8 +74,8 @@ func TestGetNamespaceIterator(t *testing.T) {
 	defer deleteTestPath(t, testDBPath)
 
 	db := provider.getDB("ledger1")
-	nsItr1 := db.getNamespaceIterator("ns1")
-	require.NoError(t, nsItr1.Error())
+	nsItr1, err := db.getNamespaceIterator("ns1")
+	require.NoError(t, err)
 	defer nsItr1.Release()
 	verifyNsEntries(t, nsItr1, nil)
 
@@ -89,13 +89,13 @@ func TestGetNamespaceIterator(t *testing.T) {
 	}
 	populateDBWithSampleData(t, db, sampleData)
 
-	nsItr2 := db.getNamespaceIterator("ns1")
-	require.NoError(t, nsItr2.Error())
+	nsItr2, err := db.getNamespaceIterator("ns1")
+	require.NoError(t, err)
 	defer nsItr2.Release()
 	verifyNsEntries(t, nsItr2, sampleData[:3])
 
-	nsItr3 := db.getNamespaceIterator("ns2")
-	require.NoError(t, nsItr3.Error())
+	nsItr3, err := db.getNamespaceIterator("ns2")
+	require.NoError(t, err)
 	defer nsItr3.Release()
 	verifyNsEntries(t, nsItr3, sampleData[3:])
 }

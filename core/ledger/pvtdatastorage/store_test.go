@@ -690,8 +690,14 @@ func testDataKeyExists(t *testing.T, s *Store, dataKey *dataKey) bool {
 }
 
 func testMissingDataKeyExists(t *testing.T, s *Store, missingDataKey *missingDataKey) bool {
-	dataKeyBytes := encodeMissingDataKey(missingDataKey)
-	val, err := s.db.Get(dataKeyBytes)
+	var key []byte
+	switch {
+	case missingDataKey.isEligible:
+		key = encodeElgMissingDataKey(elgPrioritizedMissingDataGroup, missingDataKey)
+	default:
+		key = encodeInelgMissingDataKey(missingDataKey)
+	}
+	val, err := s.db.Get(key)
 	require.NoError(t, err)
 	return len(val) != 0
 }

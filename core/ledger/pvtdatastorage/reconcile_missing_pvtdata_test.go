@@ -102,7 +102,7 @@ func TestCommitPvtDataOfOldBlocks(t *testing.T) {
 		produceSamplePvtdata(t, 3, []string{"ns-1:coll-1"}),
 	}
 
-	err = store.CommitPvtDataOfOldBlocks(oldBlocksPvtData)
+	err = store.CommitPvtDataOfOldBlocks(oldBlocksPvtData, nil)
 	require.NoError(t, err)
 
 	// ENSURE THAT THE PREVIOUSLY MISSING PVTDATA OF BLOCK 1 & 2 EXIST IN THE STORE
@@ -156,7 +156,7 @@ func TestCommitPvtDataOfOldBlocks(t *testing.T) {
 		produceSamplePvtdata(t, 2, []string{"ns-3:coll-2"}), // never expires
 	}
 
-	err = store.CommitPvtDataOfOldBlocks(oldBlocksPvtData)
+	err = store.CommitPvtDataOfOldBlocks(oldBlocksPvtData, nil)
 	require.NoError(t, err)
 
 	ns1Coll2Blk1Tx1 := &dataKey{nsCollBlk: nsCollBlk{ns: "ns-1", coll: "coll-2", blkNum: 1}, txNum: 1}
@@ -187,7 +187,7 @@ func TestCommitPvtDataOfOldBlocks(t *testing.T) {
 		produceSamplePvtdata(t, 2, []string{"ns-1:coll-2"}),
 	}
 
-	err = store.CommitPvtDataOfOldBlocks(oldBlocksPvtData)
+	err = store.CommitPvtDataOfOldBlocks(oldBlocksPvtData, nil)
 	require.NoError(t, err)
 
 	ns1Coll2Blk1Tx1 = &dataKey{nsCollBlk: nsCollBlk{ns: "ns-1", coll: "coll-2", blkNum: 1}, txNum: 1}

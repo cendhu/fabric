@@ -212,7 +212,7 @@ func (s *Store) Commit(blockNum uint64, pvtData []*ledger.TxPvtData, missingPvtD
 
 	batch := s.db.NewUpdateBatch()
 	var err error
-	var keyBytes, valBytes []byte
+	var key, val []byte
 
 	storeEntries, err := prepareStoreEntries(blockNum, pvtData, s.btlPolicy, missingPvtData)
 	if err != nil {
@@ -220,27 +220,32 @@ func (s *Store) Commit(blockNum uint64, pvtData []*ledger.TxPvtData, missingPvtD
 	}
 
 	for _, dataEntry := range storeEntries.dataEntries {
-		keyBytes = encodeDataKey(dataEntry.key)
-		if valBytes, err = encodeDataValue(dataEntry.value); err != nil {
+		key = encodeDataKey(dataEntry.key)
+		if val, err = encodeDataValue(dataEntry.value); err != nil {
 			return err
 		}
-		batch.Put(keyBytes, valBytes)
+		batch.Put(key, val)
 	}
 
 	for _, expiryEntry := range storeEntries.expiryEntries {
-		keyBytes = encodeExpiryKey(expiryEntry.key)
-		if valBytes, err = encodeExpiryValue(expiryEntry.value); err != nil {
+		key = encodeExpiryKey(expiryEntry.key)
+		if val, err = encodeExpiryValue(expiryEntry.value); err != nil {
 			return err
 		}
-		batch.Put(keyBytes, valBytes)
+		batch.Put(key, val)
 	}
 
 	for missingDataKey, missingDataValue := range storeEntries.missingDataEntries {
-		keyBytes = encodeMissingDataKey(&missingDataKey)
-		if valBytes, err = encodeMissingDataValue(missingDataValue); err != nil {
+		switch {
+		case missingDataKey.isEligible:
+			key = encodeElgMissingDataKey(elgPrioritizedMissingDataGroup, &missingDataKey)
+		default:
+			key = encodeInelgMissingDataKey(&missingDataKey)
+		}
+		if val, err = encodeMissingDataValue(missingDataValue); err != nil {
 			return err
 		}
-		batch.Put(keyBytes, valBytes)
+		batch.Put(key, val)
 	}
 
 	committingBlockNum := s.nextBlockNum()
@@ -412,7 +417,7 @@ func (s *Store) GetMissingPvtDataInfoForMostRecentBlocks(maxBlock int) (ledger.M
 	// changed. To ensure consistency, we atomically load the lastCommittedBlock value
 	lastCommittedBlock := atomic.LoadUint64(&s.lastCommittedBlock)
 
-	startKey, endKey := createRangeScanKeysForEligibleMissingDataEntries(lastCommittedBlock)
+	startKey, endKey := createRangeScanKeysForElgMissingData(lastCommittedBlock)
 	dbItr, err := s.db.GetIterator(startKey, endKey)
 	if err != nil {
 		return nil, err
@@ -421,7 +426,7 @@ func (s *Store) GetMissingPvtDataInfoForMostRecentBlocks(maxBlock int) (ledger.M
 
 	for dbItr.Next() {
 		missingDataKeyBytes := dbItr.Key()
-		missingDataKey := decodeMissingDataKey(missingDataKeyBytes)
+		missingDataKey := decodeElgMissingDataKey(missingDataKeyBytes)
 
 		if isMaxBlockLimitReached && (missingDataKey.blkNum != lastProcessedBlock) {
 			// ensures that exactly maxBlock number
@@ -512,26 +517,38 @@ func (s *Store) performPurgeIfScheduled(latestCommittedBlk uint64) {
 }
 
 func (s *Store) purgeExpiredData(minBlkNum, maxBlkNum uint64) error {
-	batch := s.db.NewUpdateBatch()
 	expiryEntries, err := s.retrieveExpiryEntries(minBlkNum, maxBlkNum)
 	if err != nil || len(expiryEntries) == 0 {
 		return err
 	}
+
+	batch := s.db.NewUpdateBatch()
 	for _, expiryEntry := range expiryEntries {
-		// this encoding could have been saved if the function retrieveExpiryEntries also returns the encoded expiry keys.
-		// However, keeping it for better readability
 		batch.Delete(encodeExpiryKey(expiryEntry.key))
 		dataKeys, missingDataKeys := deriveKeys(expiryEntry)
+
 		for _, dataKey := range dataKeys {
 			batch.Delete(encodeDataKey(dataKey))
 		}
+
 		for _, missingDataKey := range missingDataKeys {
-			batch.Delete(encodeMissingDataKey(missingDataKey))
+			batch.Delete(
+				encodeElgMissingDataKey(elgPrioritizedMissingDataGroup, missingDataKey),
+			)
+			batch.Delete(
+				encodeElgMissingDataKey(elgDeprioritizedMissingDataGroup, missingDataKey),
+			)
+			batch.Delete(
+				encodeInelgMissingDataKey(missingDataKey),
+			)
 		}
+
 		if err := s.db.WriteBatch(batch, false); err != nil {
 			return err
 		}
+		batch.Reset()
 	}
+
 	logger.Infof("[%s] - [%d] Entries purged from private data storage till block number [%d]", s.ledgerid, len(expiryEntries), maxBlkNum)
 	return nil
 }
@@ -606,7 +623,7 @@ func (s *Store) processCollElgEvents() error {
 			var coll string
 			for _, coll = range colls.Entries {
 				logger.Infof("Converting missing data entries from ineligible to eligible for [ns=%s, coll=%s]", ns, coll)
-				startKey, endKey := createRangeScanKeysForIneligibleMissingData(blkNum, ns, coll)
+				startKey, endKey := createRangeScanKeysForInelgMissingData(blkNum, ns, coll)
 				collItr, err := s.db.GetIterator(startKey, endKey)
 				if err != nil {
 					return err
@@ -615,12 +632,15 @@ func (s *Store) processCollElgEvents() error {
 
 				for collItr.Next() { // each entry
 					originalKey, originalVal := collItr.Key(), collItr.Value()
-					modifiedKey := decodeMissingDataKey(originalKey)
+					modifiedKey := decodeInelgMissingDataKey(originalKey)
 					modifiedKey.isEligible = true
 					batch.Delete(originalKey)
 					copyVal := make([]byte, len(originalVal))
 					copy(copyVal, originalVal)
-					batch.Put(encodeMissingDataKey(modifiedKey), copyVal)
+					batch.Put(
+						encodeElgMissingDataKey(elgPrioritizedMissingDataGroup, modifiedKey),
+						copyVal,
+					)
 					collEntriesConverted++
 					if batch.Len() > s.maxBatchSize {
 						s.db.WriteBatch(batch, true)
@@ -709,30 +729,6 @@ func (c *collElgProcSync) done() {
 
 func (c *collElgProcSync) waitForDone() {
 	<-c.procComplete
-}
-
-func (s *Store) getBitmapOfMissingDataKey(missingDataKey *missingDataKey) (*bitset.BitSet, error) {
-	var v []byte
-	var err error
-	if v, err = s.db.Get(encodeMissingDataKey(missingDataKey)); err != nil {
-		return nil, err
-	}
-	if v == nil {
-		return nil, nil
-	}
-	return decodeMissingDataValue(v)
-}
-
-func (s *Store) getExpiryDataOfExpiryKey(expiryKey *expiryKey) (*ExpiryData, error) {
-	var v []byte
-	var err error
-	if v, err = s.db.Get(encodeExpiryKey(expiryKey)); err != nil {
-		return nil, err
-	}
-	if v == nil {
-		return nil, nil
-	}
-	return decodeExpiryValue(v)
 }
 
 // ErrIllegalCall is to be thrown by a store impl if the store does not expect a call to Prepare/Commit/Rollback/InitLastCommittedBlock

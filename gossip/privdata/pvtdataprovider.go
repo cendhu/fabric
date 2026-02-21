@@ -160,6 +160,10 @@ type PvtdataProvider struct {
 	fetchDurationHistogram                  metrics.Histogram
 	purgeDurationHistogram                  metrics.Histogram
 	pullDurationHistogram                   metrics.Histogram
+	cacheHitsCounter                        metrics.Counter
+	cacheMissesCounter                      metrics.Counter
+	cacheLookupDurationHistogram            metrics.Histogram
+	cacheEntriesGauge                       metrics.Gauge
 	transientStore                          *transientstore.Store
 	pullRetryThreshold                      time.Duration
 	prefetchedPvtdata                       util.PvtDataCollections
@@ -257,6 +261,10 @@ func (pdp *PvtdataProvider) RetrievePvtdata(pvtdataToRetrieve []*ledger.TxPvtdat
 func (pdp *PvtdataProvider) populateFromCache(pvtdata rwsetByKeys, pvtdataRetrievalInfo *pvtdataRetrievalInfo, pvtdataToRetrieve []*ledger.TxPvtdataInfo) {
 	pdp.logger.Debugf("Attempting to retrieve %d private write sets from cache.", len(pvtdataRetrievalInfo.eligibleMissingKeys))
 
+	cacheLookupStart := time.Now()
+	var hits, misses int
+	totalEligible := len(pvtdataRetrievalInfo.eligibleMissingKeys)
+
 	for _, txPvtdata := range pdp.prefetchedPvtdata {
 		txID := getTxIDBySeqInBlock(txPvtdata.SeqInBlock, pvtdataToRetrieve)
 		// if can't match txID from query, then the data was never requested so skip the entire tx
@@ -282,9 +290,16 @@ func (pdp *PvtdataProvider) populateFromCache(pvtdata rwsetByKeys, pvtdataRetrie
 				pvtdata[key] = col.Rwset
 				// remove key from missing
 				delete(pvtdataRetrievalInfo.eligibleMissingKeys, key)
+				hits++
 			} // iterate over collections in the namespace
 		} // iterate over the namespaces in the WSet
 	} // iterate over cached private data in the block
+
+	misses = totalEligible - hits
+	pdp.cacheLookupDurationHistogram.Observe(time.Since(cacheLookupStart).Seconds())
+	pdp.cacheHitsCounter.Add(float64(hits))
+	pdp.cacheMissesCounter.Add(float64(misses))
+	pdp.cacheEntriesGauge.Set(float64(pdp.transientStore.CacheSize()))
 }
 
 // populateFromTransientStore populates pvtdata with data fetched from transient store

@@ -297,6 +297,13 @@ func (s *Store) GetMinTransientBlkHt() (uint64, error) {
 	return 0, ErrStoreEmpty
 }
 
+// CacheSize returns the number of entries in the transient store cache.
+func (s *Store) CacheSize() int {
+	mu.RLock()
+	defer mu.RUnlock()
+	return len(s.cache)
+}
+
 func (s *Store) Shutdown() {
 	// do nothing because shared db is used
 }

@@ -185,6 +185,10 @@ func (c *coordinator) StoreBlock(block *common.Block, privateDataSets util.PvtDa
 	fetchDurationHistogram := c.metrics.FetchDuration.With("channel", c.ChainID)
 	purgeDurationHistogram := c.metrics.PurgeDuration.With("channel", c.ChainID)
 	pullDurationHistogram := c.metrics.PullDuration.With("channel", c.ChainID)
+	cacheHitsCounter := c.metrics.CacheHits.With("channel", c.ChainID)
+	cacheMissesCounter := c.metrics.CacheMisses.With("channel", c.ChainID)
+	cacheLookupDurationHistogram := c.metrics.CacheLookupDuration.With("channel", c.ChainID)
+	cacheEntriesGauge := c.metrics.CacheEntries.With("channel", c.ChainID)
 	pdp := &PvtdataProvider{
 		mspID:                                   c.mspID,
 		selfSignedData:                          c.selfSignedData,
@@ -193,6 +197,10 @@ func (c *coordinator) StoreBlock(block *common.Block, privateDataSets util.PvtDa
 		fetchDurationHistogram:                  fetchDurationHistogram,
 		purgeDurationHistogram:                  purgeDurationHistogram,
 		pullDurationHistogram:                   pullDurationHistogram,
+		cacheHitsCounter:                        cacheHitsCounter,
+		cacheMissesCounter:                      cacheMissesCounter,
+		cacheLookupDurationHistogram:            cacheLookupDurationHistogram,
+		cacheEntriesGauge:                       cacheEntriesGauge,
 		transientStore:                          c.store,
 		pullRetryThreshold:                      c.pullRetryThreshold,
 		prefetchedPvtdata:                       privateDataSets,

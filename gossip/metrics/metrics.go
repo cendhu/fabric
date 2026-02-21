@@ -167,6 +167,10 @@ type PrivdataMetrics struct {
 	ReconciliationDuration         metrics.Histogram
 	PullDuration                   metrics.Histogram
 	RetrieveDuration               metrics.Histogram
+	CacheHits                      metrics.Counter
+	CacheMisses                    metrics.Counter
+	CacheLookupDuration            metrics.Histogram
+	CacheEntries                   metrics.Gauge
 }
 
 func newPrivdataMetrics(p metrics.Provider) *PrivdataMetrics {
@@ -180,6 +184,10 @@ func newPrivdataMetrics(p metrics.Provider) *PrivdataMetrics {
 		ReconciliationDuration:         p.NewHistogram(ReconciliationDurationOpts),
 		PullDuration:                   p.NewHistogram(PullDurationOpts),
 		RetrieveDuration:               p.NewHistogram(RetrieveDurationOpts),
+		CacheHits:                      p.NewCounter(CacheHitsOpts),
+		CacheMisses:                    p.NewCounter(CacheMissesOpts),
+		CacheLookupDuration:            p.NewHistogram(CacheLookupDurationOpts),
+		CacheEntries:                   p.NewGauge(CacheEntriesOpts),
 	}
 }
 
@@ -261,6 +269,42 @@ var (
 		Subsystem:    "privdata",
 		Name:         "retrieve_duration",
 		Help:         "Time it takes to retrieve missing private data elements from the ledger (in seconds)",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+	}
+
+	CacheHitsOpts = metrics.CounterOpts{
+		Namespace:    "gossip",
+		Subsystem:    "privdata",
+		Name:         "cache_hits",
+		Help:         "Number of transient store cache hits",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+	}
+
+	CacheMissesOpts = metrics.CounterOpts{
+		Namespace:    "gossip",
+		Subsystem:    "privdata",
+		Name:         "cache_misses",
+		Help:         "Number of transient store cache misses",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+	}
+
+	CacheLookupDurationOpts = metrics.HistogramOpts{
+		Namespace:    "gossip",
+		Subsystem:    "privdata",
+		Name:         "cache_lookup_duration",
+		Help:         "Time spent looking up private data in the transient store cache (in seconds)",
+		LabelNames:   []string{"channel"},
+		StatsdFormat: "%{#fqname}.%{channel}",
+	}
+
+	CacheEntriesOpts = metrics.GaugeOpts{
+		Namespace:    "gossip",
+		Subsystem:    "privdata",
+		Name:         "cache_entries",
+		Help:         "Number of entries in the transient store cache",
 		LabelNames:   []string{"channel"},
 		StatsdFormat: "%{#fqname}.%{channel}",
 	}
